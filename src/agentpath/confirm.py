@@ -20,7 +20,15 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Callable
 
 from .agents.base import AgentUnavailable, ConfirmationAgent
-from .harness import CONFIRMED, NOT_CONFIRMED, UNTESTABLE, build_scenario, judge, new_nonce
+from .harness import (
+    CONFIRMED,
+    NOT_CONFIRMED,
+    NOT_DELIVERED,
+    UNTESTABLE,
+    build_scenario,
+    judge,
+    new_nonce,
+)
 from .payloads import default_selection
 
 NOT_CONFIRMED_CAVEAT = (
@@ -33,6 +41,11 @@ SCRIPTED_CAVEAT = (
     "harness works. It says nothing about whether a real agent would do this."
 )
 
+NOT_DELIVERED_CAVEAT = (
+    "The agent never called the source tool, so the payload was never put in front of "
+    "it. This path was not tested. Do not read it as a negative result."
+)
+
 
 @dataclass
 class Confirmation:
@@ -43,9 +56,12 @@ class Confirmation:
     agent_kind: str = ""
     agent_name: str = ""
     trustworthy: bool = False
+    delivered: int = 0
     payloads_tried: list[str] = field(default_factory=list)
+    attempts_log: list[dict[str, Any]] = field(default_factory=list)
     observed_call: str = ""
     nonce: str = ""
+    agent_said: str = ""
     detail: str = ""
     caveat: str = ""
 
@@ -81,21 +97,42 @@ def confirm_finding(finding, agent: ConfirmationAgent, attempts: int = 3) -> Con
 
         result.attempts += 1
         verdict, evidence = judge(scenario, run.recorder)
+        if evidence["payload_delivered"]:
+            result.delivered += 1
+
+        result.attempts_log.append({
+            "payload": payload.id,
+            "style": payload.style,
+            "delivered": evidence["payload_delivered"],
+            "sink_called": evidence["sink_called"],
+            "verdict": verdict,
+        })
+
         if verdict == CONFIRMED:
             result.succeeded += 1
             result.verdict = CONFIRMED
             result.nonce = evidence["nonce"]
             result.observed_call = evidence.get("observed_call", "")
-        elif evidence["sink_called_without_marker"] and not result.detail:
-            # Worth recording, but it is not proof: the agent may have called the
-            # sink for its own reasons, without the planted data reaching it.
-            result.detail = (
-                "The sink was called, but without the marker, so this does not "
-                "demonstrate that the planted content reached it."
-            )
+        else:
+            if not result.agent_said:
+                result.agent_said = run.final_text()
+            if evidence["sink_called_without_marker"] and not result.detail:
+                # Worth recording, but it is not proof: the agent may have called
+                # the sink for its own reasons, without the planted data reaching it.
+                result.detail = (
+                    "The sink was called, but without the marker, so this does not "
+                    "demonstrate that the planted content reached it."
+                )
+
+    # A trial where the payload never reached the agent is not a negative result,
+    # it is an absence of a result, and it has to be reported as one.
+    if result.verdict != CONFIRMED and result.delivered == 0 and result.attempts:
+        result.verdict = NOT_DELIVERED
 
     if result.verdict == CONFIRMED:
         result.caveat = SCRIPTED_CAVEAT if not result.trustworthy else ""
+    elif result.verdict == NOT_DELIVERED:
+        result.caveat = NOT_DELIVERED_CAVEAT
     else:
         result.caveat = NOT_CONFIRMED_CAVEAT
         if not result.trustworthy:
@@ -135,7 +172,8 @@ def apply_confirmations(findings, confirmations: list[Confirmation] | list[dict]
         # exactly where it was: still a candidate, not downgraded, not cleared.
         if data["verdict"] == CONFIRMED:
             finding.status = CONFIRMED
-        elif data["verdict"] == UNTESTABLE:
+        elif data["verdict"] in (UNTESTABLE, NOT_DELIVERED):
+            # Nothing was learned, so the finding stays exactly as it was.
             finding.status = "candidate"
         else:
             finding.status = NOT_CONFIRMED

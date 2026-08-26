@@ -249,8 +249,12 @@ def cmd_confirm(args: argparse.Namespace) -> int:
                   file=sys.stderr)
         else:
             mark = {"confirmed": "CONFIRMED", "not_confirmed": "not confirmed",
+                    "not_delivered": "NOT TESTED (payload never reached the agent)",
                     "untestable": "untestable"}[payload.verdict]
-            print(f"    {mark} ({payload.succeeded}/{payload.attempts})", file=sys.stderr)
+            detail = (f"{payload.succeeded}/{payload.attempts}"
+                      if payload.verdict == "confirmed"
+                      else f"delivered {payload.delivered}/{payload.attempts}")
+            print(f"    {mark} ({detail})", file=sys.stderr)
 
     results = confirm_all(candidates, agent, args.attempts, on_event=narrate)
 
@@ -264,8 +268,12 @@ def cmd_confirm(args: argparse.Namespace) -> int:
         encoding="utf-8",
     )
     confirmed = sum(1 for result in results if result.verdict == "confirmed")
+    undelivered = sum(1 for result in results if result.verdict == "not_delivered")
     print(f"\nWrote {args.out}: {confirmed} of {len(results)} paths confirmed.",
           file=sys.stderr)
+    if undelivered:
+        print(f"{undelivered} paths were never exercised: the agent did not read the "
+              f"planted content, so those are not negative results.", file=sys.stderr)
     if not agent.trustworthy:
         print("Reminder: these results came from a scripted stand in and say nothing "
               "about real agent behaviour.", file=sys.stderr)

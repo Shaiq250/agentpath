@@ -13,8 +13,10 @@ SEVERITY_ORDER = ("critical", "high", "medium", "low")
 STATUS_LINE = {
     "confirmed": "**Confirmed.** {agent} called `{sink}` with the planted marker in "
                  "{succeeded} of {attempts} attempts.",
-    "not_confirmed": "**Not confirmed.** {agent} did not call `{sink}` with the planted "
-                     "marker in {attempts} attempts.",
+    "not_confirmed": "**Not confirmed.** The payload reached {agent} in {delivered} of "
+                     "{attempts} attempts, and it did not call `{sink}` with the marker.",
+    "not_delivered": "**Not tested.** {agent} never read the planted content in "
+                     "{attempts} attempts, so this path was never exercised.",
 }
 
 INCOMPLETE_HEADLINE = "Scan incomplete."
@@ -71,11 +73,26 @@ def _confirmation_lines(finding: Finding) -> list[str]:
         agent=agent,
         sink=f"{finding.sink.server}/{finding.sink.tool}",
         succeeded=data.get("succeeded", 0),
+        delivered=data.get("delivered", 0),
         attempts=data.get("attempts", 0),
     )]
+    styles = sorted({entry.get("style", "") for entry in data.get("attempts_log", [])})
+    styles = [style for style in styles if style]
+    if styles and data.get("verdict") != "confirmed":
+        lines.append("")
+        lines.append(f"Payload styles tried: {', '.join(styles)}.")
+    if data.get("agent_said"):
+        lines.append("")
+        lines.append(f"The agent's own response: \"{data['agent_said']}\"")
     if data.get("observed_call"):
         lines.append("")
+        confirmed_payload = next(
+            (entry["style"] for entry in data.get("attempts_log", [])
+             if entry.get("verdict") == "confirmed"), "")
         lines.append(f"Observed call: `{data['observed_call']}`")
+        if confirmed_payload:
+            lines.append("")
+            lines.append(f"Walked via a payload {confirmed_payload}.")
     if data.get("detail"):
         lines.append("")
         lines.append(data["detail"])
@@ -92,9 +109,16 @@ def _confirmation_summary(findings: list[Finding]) -> list[str]:
         return []
     confirmed = [f for f in tested if f.confirmation.get("verdict") == "confirmed"]
     untrusted = [f for f in tested if not f.confirmation.get("trustworthy")]
+    undelivered = [f for f in tested if f.confirmation.get("verdict") == "not_delivered"]
 
     lines = [f"**Confirmation: {len(confirmed)} of {len(tested)} candidate paths were "
              f"observed being walked.**", ""]
+    if undelivered:
+        lines.append(
+            f"{len(undelivered)} of these were never actually exercised: the agent did not "
+            f"read the planted content, so nothing was learned about those paths either way."
+        )
+        lines.append("")
     if untrusted:
         lines.append(
             f"{len(untrusted)} of these were tested against a scripted stand in rather than "

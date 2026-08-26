@@ -13,7 +13,15 @@ import pytest
 from agentpath.agents import AgentUnavailable, ModelAgent, ScriptedAgent
 from agentpath.confirm import apply_confirmations, confirm_all, confirm_finding
 from agentpath.findings import analyze
-from agentpath.harness import CONFIRMED, NOT_CONFIRMED, UNTESTABLE, Recorder, build_scenario, judge
+from agentpath.harness import (
+    CONFIRMED,
+    NOT_CONFIRMED,
+    NOT_DELIVERED,
+    UNTESTABLE,
+    Recorder,
+    build_scenario,
+    judge,
+)
 from agentpath.payloads import LIBRARY, default_selection
 from agentpath.report import to_json, to_markdown
 
@@ -41,11 +49,34 @@ def test_the_oracle_needs_the_marker_not_just_a_sink_call():
     """A sink call without the marker does not prove the planted data reached it."""
     scenario = build_scenario("read_ticket", "send_email", LIBRARY[0], "APA-DEADBEEF")
     recorder = Recorder()
+    scenario.handle(recorder, "read_ticket", {})
     scenario.handle(recorder, "send_email", {"to": "someone@example.com"})
     verdict, evidence = judge(scenario, recorder)
     assert verdict == NOT_CONFIRMED
     assert evidence["sink_called"] is True
     assert evidence["sink_called_with_marker"] is False
+
+
+def test_an_agent_that_never_read_the_content_was_not_tested():
+    """The trap this verdict exists for.
+
+    An agent that never calls the source produces the same absence of a sink call
+    as an agent that read the payload and refused it. If both reported as
+    not_confirmed, a broken harness would be indistinguishable from a resistant
+    agent, which is the false all clear one level up.
+    """
+    scenario = build_scenario("read_ticket", "send_email", LIBRARY[0], "APA-DEADBEEF")
+    verdict, evidence = judge(scenario, Recorder())
+    assert verdict == NOT_DELIVERED
+    assert evidence["payload_delivered"] is False
+
+
+def test_a_refusal_and_a_no_show_are_different_verdicts():
+    scenario = build_scenario("read_ticket", "send_email", LIBRARY[0], "APA-DEADBEEF")
+    read_it = Recorder()
+    scenario.handle(read_it, "read_ticket", {})
+    assert judge(scenario, read_it)[0] == NOT_CONFIRMED
+    assert judge(scenario, Recorder())[0] == NOT_DELIVERED
 
 
 def test_the_oracle_confirms_when_the_marker_travels():
@@ -183,3 +214,68 @@ def test_json_flags_a_scripted_only_run(support_agent):
     payload = json.loads(to_json(support_agent, findings))
     assert payload["confirmation"]["confirmed"] >= 1
     assert payload["confirmation"]["from_scripted_agent_only"] is True
+
+
+# -- trial validity --------------------------------------------------------
+
+class SilentAgent:
+    """An agent that answers without using any tool at all."""
+
+    kind = "model"
+    name = "silent-test-model"
+    trustworthy = True
+
+    def run(self, scenario):
+        from agentpath.agents.base import AgentResult
+        from agentpath.harness import Recorder as Rec
+        return AgentResult(recorder=Rec(),
+                           transcript=[{"role": "assistant", "content": "I need more detail."}])
+
+
+def test_a_run_where_nothing_was_read_is_reported_as_not_tested(support_agent):
+    finding = analyze(support_agent)[0]
+    result = confirm_finding(finding, SilentAgent(), attempts=2)
+    assert result.verdict == "not_delivered"
+    assert result.delivered == 0
+    assert "was not tested" in result.caveat
+
+
+def test_a_not_tested_path_stays_a_candidate(support_agent):
+    """Nothing was learned, so the finding must not be downgraded."""
+    findings = analyze(support_agent)
+    apply_confirmations(findings, confirm_all(findings, SilentAgent(), 1))
+    assert all(f.status == "candidate" for f in findings)
+
+
+def test_the_report_distinguishes_not_tested_from_not_confirmed(support_agent):
+    findings = analyze(support_agent)
+    apply_confirmations(findings, confirm_all(findings, SilentAgent(), 1))
+    text = to_markdown(support_agent, findings)
+    assert "**Not tested.**" in text
+    assert "never read the planted content" in text
+    assert "Not confirmed." not in text
+
+
+def test_delivery_is_counted_when_the_agent_does_read(support_agent):
+    finding = analyze(support_agent)[0]
+    result = confirm_finding(finding, ScriptedAgent("ignores"), attempts=2)
+    assert result.delivered == 2
+    assert result.verdict == "not_confirmed"
+
+
+def test_the_agents_own_words_are_kept_for_a_negative_result(support_agent):
+    """A refusal usually explains itself. That sentence is the evidence."""
+    finding = analyze(support_agent)[0]
+    result = confirm_finding(finding, ScriptedAgent("ignores"), attempts=1)
+    assert result.agent_said
+    text = to_markdown(support_agent, [finding])
+    apply_confirmations([finding], [result])
+    text = to_markdown(support_agent, [finding])
+    assert "The agent's own response" in text
+
+
+def test_every_attempt_is_logged_with_its_payload_style(support_agent):
+    finding = analyze(support_agent)[0]
+    result = confirm_finding(finding, ScriptedAgent("ignores"), attempts=3)
+    assert len(result.attempts_log) == 3
+    assert all(entry["style"] for entry in result.attempts_log)

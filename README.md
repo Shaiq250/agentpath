@@ -157,12 +157,24 @@ Without an API key the tool reports paths as untestable rather than quietly
 falling back to the scripted agent, because that would be manufacturing
 evidence.
 
-### Not confirmed is not safe
+### Three outcomes, not two
 
-Models are sampled. A different model, system prompt, temperature or payload can
-change the answer. A path that was tested and not walked stays in the report as
-a candidate, with that sentence attached. It is never downgraded and never
-presented as cleared.
+A path can be confirmed, not confirmed, or not tested. That third one matters:
+if the agent never calls the source tool, the payload was never put in front of
+it, and reporting that as a negative result would let a broken test look like a
+resistant agent. Not tested is called out separately and leaves the finding a
+candidate.
+
+Not confirmed is not safe either. Models are sampled, and a different model,
+prompt, temperature or payload can change the answer. A tested-and-not-walked
+path stays a candidate with that sentence attached, and the report keeps the
+agent's own response so a refusal can be read rather than assumed.
+
+The payloads ship at two difficulty levels, obvious and plausible, and a
+confirmed result reports which one walked it. This is deliberate: a confirmation
+that only ever works with a blunt all-caps instruction is a weaker result than
+one that works with an instruction disguised as a routine field, and the report
+should not let the two look the same.
 
 ## Correcting it: .agentpath.yml
 
