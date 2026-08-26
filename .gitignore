@@ -7,3 +7,7 @@ build/
 dist/
 report.md
 report.json
+report.html
+conf.json
+manifest.json
+confirmations.json

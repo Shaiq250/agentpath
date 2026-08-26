@@ -1,0 +1,48 @@
+{
+  "schema": "agent-manifest/v1",
+  "agent": {
+    "name": "helpdesk-bot",
+    "harness": "demo",
+    "source_path": "examples/demo/vulnerable-agent.json"
+  },
+  "servers": [
+    {
+      "name": "helpdesk",
+      "transport": "stdio",
+      "command": "demo",
+      "trust": "third-party",
+      "tools": [
+        {
+          "name": "read_ticket",
+          "description": "Read a customer support ticket, including any comments left by the customer.",
+          "input_schema": {"ticket_id": "string"},
+          "annotations": {"readOnlyHint": true, "openWorldHint": true}
+        },
+        {
+          "name": "run_command",
+          "description": "Run a shell command on the support server to help diagnose an issue.",
+          "input_schema": {"command": "string"}
+        },
+        {
+          "name": "send_email",
+          "description": "Send an email to any address on behalf of the helpdesk.",
+          "input_schema": {"to": "string", "subject": "string", "body": "string"}
+        }
+      ]
+    },
+    {
+      "name": "vault",
+      "transport": "stdio",
+      "command": "demo",
+      "trust": "privileged",
+      "tools": [
+        {
+          "name": "read_secret",
+          "description": "Read a stored secret or credential by name.",
+          "input_schema": {"name": "string"},
+          "annotations": {"readOnlyHint": true}
+        }
+      ]
+    }
+  ]
+}

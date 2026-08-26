@@ -30,3 +30,26 @@ def test_json_is_valid_and_carries_every_finding(support_agent):
     first = payload["findings"][0]
     for key in ("id", "rule", "severity", "status", "source", "sink", "scenario", "fix"):
         assert key in first
+
+
+def test_html_report_renders_and_marks_verdicts(support_agent):
+    from agentpath.confirm import apply_confirmations, confirm_all
+    from agentpath.agents import ScriptedAgent
+    from agentpath.report_html import to_html
+
+    findings = analyze(support_agent)
+    apply_confirmations(findings, confirm_all(findings, ScriptedAgent("follows"), 1))
+    html = to_html(support_agent, findings)
+    assert "<!doctype html>" in html
+    assert "v-confirmed" in html
+    assert "scripted stand in" in html
+    assert support_agent.name in html
+
+
+def test_html_report_shows_incomplete(support_agent, monkeypatch):
+    from agentpath.report_html import to_html
+    # forge an unenumerated server
+    from agentpath.model import EnumerationStatus, FAILED
+    support_agent.servers[0].status = EnumerationStatus(FAILED, "boom")
+    html = to_html(support_agent, analyze(support_agent))
+    assert "Scan incomplete" in html

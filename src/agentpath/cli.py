@@ -76,7 +76,7 @@ def build_parser() -> argparse.ArgumentParser:
                          help="model uses a real language model and needs an API key; "
                               "scripted uses an offline stand in that only proves the "
                               "harness works (default: model)")
-    confirm.add_argument("--model", default="claude-sonnet-4-6",
+    confirm.add_argument("--model", default="claude-sonnet-5",
                          help="model id to test, when --agent model")
     confirm.add_argument("--attempts", type=int, default=3,
                          help="payload variations to try per path (default: 3)")
@@ -85,7 +85,7 @@ def build_parser() -> argparse.ArgumentParser:
     analyze = sub.add_parser("analyze", help="analyse an agent manifest, offline")
     analyze.add_argument("manifest", help="path to an agent manifest JSON file")
     analyze.add_argument("-o", "--out", help="write the report to a file instead of stdout")
-    analyze.add_argument("--format", choices=("md", "json"), default="md")
+    analyze.add_argument("--format", choices=("md", "json", "html"), default="md")
     analyze.add_argument(
         "--fail-on",
         choices=SEVERITIES,
@@ -305,8 +305,13 @@ def cmd_analyze(args: argparse.Namespace) -> int:
             return 2
         apply_confirmations(findings, payload.get("results", []))
 
-    render = to_json if args.format == "json" else to_markdown
-    text = render(agent, findings)
+    if args.format == "json":
+        text = to_json(agent, findings)
+    elif args.format == "html":
+        from .report_html import to_html
+        text = to_html(agent, findings)
+    else:
+        text = to_markdown(agent, findings)
 
     if args.out:
         Path(args.out).write_text(text, encoding="utf-8")
