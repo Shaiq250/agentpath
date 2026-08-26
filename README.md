@@ -11,9 +11,9 @@ your tools leaves the machine.
 
 ## Status
 
-Early. This is M0, the walking skeleton: it reads a manifest file, labels the
-tools, finds the paths, and writes a report. Live enumeration of MCP servers and
-the confirmation mode described below are the next two milestones.
+Early. It discovers the MCP servers configured on a machine, asks each one which
+tools it offers, and analyses the result. The confirmation mode described below
+is the next milestone.
 
 ## The problem
 
@@ -50,13 +50,56 @@ destinations, or require approval before sensitive data leaves.
 
 ```
 pip install -e ".[dev]"
-agentpath analyze examples/support-agent.json
-agentpath analyze examples/support-agent.json --format json -o report.json
+
+# scan this machine
+agentpath collect -o manifest.json
+agentpath analyze manifest.json
+
+# or analyse a manifest you wrote by hand
 agentpath analyze examples/support-agent.json --fail-on high
+agentpath analyze examples/support-agent.json --format json -o report.json
 ```
 
-`analyze` exits 1 when a finding at or above the threshold exists, so it works
-in CI.
+The two commands are deliberately separate. `collect` touches your system,
+`analyze` never does. That means a report can always be reproduced from a file,
+and the only command that runs anything is one you choose to run.
+
+`analyze` exits 1 when a finding at or above the threshold exists, or when the
+scan was incomplete, so it works in CI.
+
+## collect runs the commands in your config files
+
+An MCP config file lists servers and how to start them. It does not list their
+tools. The only way to learn a server's tools is to start it and ask, so
+`collect` runs the command each config entry specifies.
+
+Before it starts anything, it prints every server and the exact command it is
+about to run. If you are scanning a config you did not write, use `--no-launch`,
+which reads the config files and executes nothing, or run the scan inside a
+container.
+
+```
+agentpath collect --no-launch -o manifest.json   # nothing is executed
+agentpath collect --no-cache -o manifest.json    # re-ask every server
+agentpath collect --timeout 30 -o manifest.json
+```
+
+## An incomplete scan never reads as a clean one
+
+A server that fails to start, times out, or is skipped contributes zero tools.
+Zero tools looks exactly like a harmless server, so the manifest records what
+happened to every server, and the report refuses to give a clean verdict when
+any of them is unknown:
+
+```
+> Scan incomplete. 2 of 3 servers were not enumerated.
+>
+> - `broken` (failed): server exited before replying: ImportError: no module named nope
+> - `remote` (skipped): http transport is not enumerated yet, so its tools are unknown
+```
+
+A scan that saw nothing is not a scan that found nothing. That distinction is
+worth more than any individual rule in this tool.
 
 ## How it decides
 
@@ -100,6 +143,8 @@ Three things here are different:
   environment.
 - Single agent only. Several agents on one machine sharing a server, tool
   shadowing across servers, and multi hop chains are later milestones.
+- Only stdio servers are enumerated. HTTP and SSE servers are recorded as
+  skipped, which makes the scan incomplete rather than silently empty.
 
 ## Ethics
 

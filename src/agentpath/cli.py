@@ -1,20 +1,30 @@
 """Command line interface.
 
-`analyze` is offline and reads a manifest. `collect`, which enumerates a live
-agent's servers and writes that manifest, arrives in M1 and stays a separate
-command so that analysis never needs a live system.
+Two commands, deliberately separate:
+
+  collect   reads config files and, unless told not to, starts each configured
+            server to ask what tools it offers. This is the only command that
+            executes anything.
+  analyze   reads a manifest and reports attack paths. Offline, always.
+
+Keeping them apart means analysis is reproducible from a file, tests never need
+a live system, and the risky half of the tool is one command the user chooses to
+run rather than something that happens implicitly.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
 from .classify import classify_agent
+from .collect import collect as run_collect
+from .discovery import ServerSpec, config_locations, discover
 from .findings import analyze as run_analysis
 from .labels import SEVERITIES, at_least
-from .model import ManifestError, load_manifest
+from .model import ManifestError, load_manifest, manifest_to_dict
 from .report import to_json, to_markdown
 
 
@@ -24,6 +34,26 @@ def build_parser() -> argparse.ArgumentParser:
         description="Find attack paths in the tools available to an AI agent.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
+
+    collect = sub.add_parser(
+        "collect",
+        help="discover configured MCP servers and record their tools",
+        description=(
+            "Reads agent config files and starts each configured server to ask which "
+            "tools it offers. Starting a server means running the command in the config "
+            "file, so the commands are printed before anything runs. Use --no-launch to "
+            "read the configs without executing anything."
+        ),
+    )
+    collect.add_argument("-o", "--out", default="manifest.json",
+                         help="where to write the manifest (default: manifest.json)")
+    collect.add_argument("--no-launch", action="store_true",
+                         help="read config files only; do not start any server")
+    collect.add_argument("--name", default="", help="name for the collected agent")
+    collect.add_argument("--timeout", type=float, default=15.0,
+                         help="seconds to wait for each server to reply (default: 15)")
+    collect.add_argument("--no-cache", action="store_true",
+                         help="ignore cached tool lists and re-enumerate everything")
 
     analyze = sub.add_parser("analyze", help="analyse an agent manifest, offline")
     analyze.add_argument("manifest", help="path to an agent manifest JSON file")
@@ -35,8 +65,88 @@ def build_parser() -> argparse.ArgumentParser:
         default="low",
         help="exit non zero when a finding at this severity or above exists (default: low)",
     )
+    analyze.add_argument(
+        "--allow-incomplete",
+        action="store_true",
+        help="do not exit non zero merely because some servers were not enumerated",
+    )
     return parser
 
+
+# ---------------------------------------------------------------- collect
+
+def _warn_about_launching(specs: list[ServerSpec]) -> None:
+    """Show exactly what is about to run, before it runs.
+
+    A README warning is not much use to someone who has already typed the
+    command. Printing the commands costs nothing and means nobody can say they
+    were not told.
+    """
+    launchable = [spec for spec in specs if spec.transport == "stdio"]
+    if not launchable:
+        return
+    print("agentpath is about to start the following servers to ask for their tools.",
+          file=sys.stderr)
+    print("This runs the commands exactly as your config files define them:", file=sys.stderr)
+    for spec in launchable:
+        print(f"  {spec.name}: {spec.command_line}", file=sys.stderr)
+    print("If you did not write these config files, stop and run with --no-launch, "
+          "or scan inside a container.", file=sys.stderr)
+    print("", file=sys.stderr)
+
+
+def _narrate(event: str, spec: ServerSpec, detail: str) -> None:
+    labels = {
+        "launching": "starting",
+        "enumerated": "ok",
+        "cached": "cached",
+        "skipped": "skipped",
+        "failed": "FAILED",
+    }
+    print(f"  [{labels.get(event, event)}] {spec.name}: {detail}", file=sys.stderr)
+
+
+def cmd_collect(args: argparse.Namespace) -> int:
+    specs = discover()
+    if not specs:
+        print("No MCP server configurations found. Looked in:", file=sys.stderr)
+        for _harness, path in config_locations():
+            print(f"  {path}", file=sys.stderr)
+        return 2
+
+    print(f"Found {len(specs)} configured servers.", file=sys.stderr)
+    if not args.no_launch:
+        _warn_about_launching(specs)
+
+    result = run_collect(
+        specs,
+        launch=not args.no_launch,
+        agent_name=args.name,
+        timeout=args.timeout,
+        use_cache=not args.no_cache,
+        on_event=_narrate,
+    )
+
+    Path(args.out).write_text(
+        json.dumps(manifest_to_dict(result.agent, result.collection), indent=2),
+        encoding="utf-8",
+    )
+
+    tools = sum(1 for _ in result.agent.tools())
+    print(f"\nWrote {args.out}: {len(result.agent.servers)} servers, {tools} tools.",
+          file=sys.stderr)
+
+    missing = result.agent.unenumerated()
+    if missing:
+        names = ", ".join(server.name for server in missing)
+        print(f"Incomplete: {len(missing)} of {len(result.agent.servers)} servers were not "
+              f"enumerated ({names}).", file=sys.stderr)
+        print("Their tools are unknown, so any attack path through them will be missing "
+              "from the analysis.", file=sys.stderr)
+    return 0
+
+
+# ---------------------------------------------------------------- analyze
 
 def cmd_analyze(args: argparse.Namespace) -> int:
     try:
@@ -60,13 +170,19 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         except BrokenPipeError:  # output piped into head, less and friends
             pass
 
-    return 1 if any(at_least(f.severity, args.fail_on) for f in findings) else 0
+    triggered = any(at_least(finding.severity, args.fail_on) for finding in findings)
+    # An incomplete scan also exits non zero. In CI, a scan that quietly covered
+    # half the servers should not pass as green.
+    incomplete = not agent.complete and not args.allow_incomplete
+    return 1 if (triggered or incomplete) else 0
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "analyze":
         return cmd_analyze(args)
+    if args.command == "collect":
+        return cmd_collect(args)
     return 2
 
 

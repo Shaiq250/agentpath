@@ -12,7 +12,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterator
 
-SCHEMA = "agent-manifest/v1"
+SCHEMA = "agent-manifest/v2"
+ACCEPTED_SCHEMAS = ("agent-manifest/v1", "agent-manifest/v2")
+
+# A server's tools are only known if we actually asked it. Anything else has to
+# be visible in the report, because a server we failed to enumerate contributes
+# zero tools, and zero tools silently looks exactly like a safe server.
+ENUMERATED = "enumerated"
+SKIPPED = "skipped"
+FAILED = "failed"
 
 
 class ManifestError(ValueError):
@@ -57,12 +65,31 @@ class Tool:
 
 
 @dataclass
+class EnumerationStatus:
+    """Whether this server's tool list was actually obtained, and if not, why."""
+
+    state: str = ENUMERATED
+    reason: str = ""
+
+    @property
+    def known(self) -> bool:
+        return self.state == ENUMERATED
+
+    def to_dict(self) -> dict[str, str]:
+        out = {"state": self.state}
+        if self.reason:
+            out["reason"] = self.reason
+        return out
+
+
+@dataclass
 class Server:
     name: str
     transport: str = "stdio"
     command: str = ""
     trust: str = "unknown"
     tools: list[Tool] = field(default_factory=list)
+    status: EnumerationStatus = field(default_factory=EnumerationStatus)
 
 
 @dataclass
@@ -92,6 +119,14 @@ class Agent:
         server = self.server(tool.server)
         return server.trust if server else "unknown"
 
+    def unenumerated(self) -> list[Server]:
+        """Servers whose tools we do not actually know."""
+        return [server for server in self.servers if not server.status.known]
+
+    @property
+    def complete(self) -> bool:
+        return not self.unenumerated()
+
     def labels_present(self) -> set[str]:
         found: set[str] = set()
         for tool in self.tools():
@@ -114,8 +149,10 @@ def parse_manifest(raw: dict[str, Any], source: str = "<memory>") -> Agent:
         raise ManifestError(f"{source}: manifest must be a JSON object")
 
     schema = raw.get("schema")
-    if schema != SCHEMA:
-        raise ManifestError(f"{source}: expected schema {SCHEMA!r}, found {schema!r}")
+    if schema not in ACCEPTED_SCHEMAS:
+        raise ManifestError(
+            f"{source}: expected one of {ACCEPTED_SCHEMAS}, found {schema!r}"
+        )
 
     agent_block = raw.get("agent") or {}
     if not agent_block.get("name"):
@@ -126,11 +163,19 @@ def parse_manifest(raw: dict[str, Any], source: str = "<memory>") -> Agent:
         server_name = entry.get("name")
         if not server_name:
             raise ManifestError(f"{source}: every server needs a name")
+        # A v1 manifest is hand written, so its tool list is complete by
+        # construction. Only v2 records a status, because only v2 can be the
+        # output of a collection that partly failed.
+        status_entry = entry.get("status") or {}
         server = Server(
             name=server_name,
             transport=entry.get("transport", "stdio"),
             command=entry.get("command", ""),
             trust=entry.get("trust", "unknown"),
+            status=EnumerationStatus(
+                state=status_entry.get("state", ENUMERATED),
+                reason=status_entry.get("reason", ""),
+            ),
         )
         seen: set[str] = set()
         for tool_entry in entry.get("tools", []):
@@ -159,3 +204,35 @@ def parse_manifest(raw: dict[str, Any], source: str = "<memory>") -> Agent:
         source_path=agent_block.get("source_path", ""),
         servers=servers,
     )
+
+
+def manifest_to_dict(agent: Agent, collection: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Serialise an agent back to a manifest, for the collector to write."""
+    return {
+        "schema": SCHEMA,
+        "agent": {
+            "name": agent.name,
+            "harness": agent.harness,
+            "source_path": agent.source_path,
+        },
+        "collection": collection or {},
+        "servers": [
+            {
+                "name": server.name,
+                "transport": server.transport,
+                "command": server.command,
+                "trust": server.trust,
+                "status": server.status.to_dict(),
+                "tools": [
+                    {
+                        "name": tool.name,
+                        "description": tool.description,
+                        "input_schema": tool.input_schema,
+                        "annotations": tool.annotations,
+                    }
+                    for tool in server.tools
+                ],
+            }
+            for server in agent.servers
+        ],
+    }

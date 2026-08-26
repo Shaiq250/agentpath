@@ -10,12 +10,36 @@ from .model import Agent
 
 SEVERITY_ORDER = ("critical", "high", "medium", "low")
 
+INCOMPLETE_HEADLINE = "Scan incomplete."
+
+INCOMPLETE_NOTE = (
+    "The tools of the servers listed below were never obtained, so nothing about them has "
+    "been analysed. Any attack path that runs through one of them is missing from this "
+    "report. Treat this as an unfinished scan, not as a result."
+)
+
 DISCLAIMER = (
     "Every finding below is a candidate produced by static analysis. A candidate means the "
     "combination of tools makes the path possible, not that this agent has been observed "
     "walking it. Confirmation mode, which watches whether the agent really calls the sink, "
     "arrives in a later version."
 )
+
+
+def _incomplete_block(agent: Agent) -> list[str]:
+    """Say plainly which servers were not enumerated, and what that costs."""
+    missing = agent.unenumerated()
+    if not missing:
+        return []
+    lines = [f"> **{INCOMPLETE_HEADLINE}** {len(missing)} of {len(agent.servers)} "
+             f"servers were not enumerated.", ">"]
+    for server in missing:
+        reason = server.status.reason or "no reason recorded"
+        lines.append(f"> - `{server.name}` ({server.status.state}): {reason}")
+    lines.append(">")
+    lines.append(f"> {INCOMPLETE_NOTE}")
+    lines.append("")
+    return lines
 
 
 def to_markdown(agent: Agent, findings: list[Finding]) -> str:
@@ -30,14 +54,28 @@ def to_markdown(agent: Agent, findings: list[Finding]) -> str:
     tool_count = sum(1 for _ in agent.tools())
     lines.append(f"Servers: {server_count}. Tools: {tool_count}. Findings: {len(findings)}.")
     lines.append("")
+    lines.extend(_incomplete_block(agent))
 
     if not findings:
-        lines.append("No attack paths found.")
-        lines.append("")
-        lines.append(
-            "This means no dangerous label combination was detected in the tools available to "
-            "this agent. It is not a guarantee that the agent is safe."
-        )
+        # The empty result is the one place this tool could do real harm, by
+        # letting a scan that saw nothing read as a scan that found nothing.
+        if agent.complete:
+            lines.append("No attack paths found.")
+            lines.append("")
+            lines.append(
+                "This means no dangerous label combination was detected in the tools available "
+                "to this agent. It is not a guarantee that the agent is safe."
+            )
+        else:
+            lines.append("No attack paths found in the part of this agent that was analysed.")
+            lines.append("")
+            lines.append(
+                "This is not a clean result. The servers listed above were never enumerated, "
+                "so the analysis covered "
+                f"{len(agent.servers) - len(agent.unenumerated())} of {len(agent.servers)} "
+                "servers. Re-run the collection so the remaining servers are included before "
+                "drawing any conclusion."
+            )
         lines.append("")
         return "\n".join(lines)
 
@@ -91,6 +129,15 @@ def to_json(agent: Agent, findings: list[Finding]) -> str:
             "tools": sum(1 for _ in agent.tools()),
             "findings": len(findings),
         },
+        "complete": agent.complete,
+        "unenumerated": [
+            {
+                "server": server.name,
+                "state": server.status.state,
+                "reason": server.status.reason,
+            }
+            for server in agent.unenumerated()
+        ],
         "note": DISCLAIMER,
         "findings": [finding.to_dict() for finding in findings],
     }
