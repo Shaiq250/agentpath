@@ -1,7 +1,6 @@
 # agentpath
 
-<!-- After you create the GitHub repo, replace OWNER/REPO below and delete this comment. -->
-![tests](https://github.com/OWNER/REPO/actions/workflows/ci.yml/badge.svg)
+![tests](https://github.com/Shaiq250/agentpath/actions/workflows/ci.yml/badge.svg)
 
 An offline tool that finds attack paths in the tools an AI agent can call, and
 then tests whether an agent actually walks them.
