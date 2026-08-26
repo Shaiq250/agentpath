@@ -1,0 +1,30 @@
+{
+  "schema": "agent-manifest/v1",
+  "agent": {
+    "name": "docs-reader",
+    "harness": "claude-desktop",
+    "source_path": "examples/readonly-docs-agent.json"
+  },
+  "servers": [
+    {
+      "name": "handbook",
+      "transport": "stdio",
+      "command": "python handbook_mcp.py",
+      "trust": "internal",
+      "tools": [
+        {
+          "name": "search_handbook",
+          "description": "Search the curated internal handbook and return matching sections.",
+          "input_schema": {"terms": "string"},
+          "annotations": {"readOnlyHint": true}
+        },
+        {
+          "name": "get_section",
+          "description": "Return one numbered section of the curated internal handbook.",
+          "input_schema": {"section": "string"},
+          "annotations": {"readOnlyHint": true}
+        }
+      ]
+    }
+  ]
+}

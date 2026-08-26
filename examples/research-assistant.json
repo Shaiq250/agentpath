@@ -1,0 +1,37 @@
+{
+  "schema": "agent-manifest/v1",
+  "agent": {
+    "name": "research-assistant",
+    "harness": "cursor",
+    "source_path": "examples/research-assistant.json"
+  },
+  "servers": [
+    {
+      "name": "web",
+      "transport": "stdio",
+      "command": "npx fetch-mcp",
+      "trust": "third-party",
+      "tools": [
+        {
+          "name": "fetch_url",
+          "description": "Fetch a web page and return its text content.",
+          "input_schema": {"url": "string"},
+          "annotations": {"openWorldHint": true, "readOnlyHint": true}
+        }
+      ]
+    },
+    {
+      "name": "slack",
+      "transport": "http",
+      "command": "",
+      "trust": "internal",
+      "tools": [
+        {
+          "name": "post_message",
+          "description": "Post a message to a Slack channel.",
+          "input_schema": {"channel": "string", "text": "string"}
+        }
+      ]
+    }
+  ]
+}

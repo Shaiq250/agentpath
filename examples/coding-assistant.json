@@ -1,0 +1,48 @@
+{
+  "schema": "agent-manifest/v1",
+  "agent": {
+    "name": "coding-assistant",
+    "harness": "claude-code",
+    "source_path": "examples/coding-assistant.json"
+  },
+  "servers": [
+    {
+      "name": "github",
+      "transport": "http",
+      "command": "",
+      "trust": "third-party",
+      "tools": [
+        {
+          "name": "read_pull_request",
+          "description": "Read a pull request title, body and review comments from any contributor.",
+          "input_schema": {"repo": "string", "number": "integer"},
+          "annotations": {"readOnlyHint": true, "openWorldHint": true}
+        },
+        {
+          "name": "create_gist",
+          "description": "Publish a public gist with the given content.",
+          "input_schema": {"filename": "string", "content": "string"}
+        }
+      ]
+    },
+    {
+      "name": "workspace",
+      "transport": "stdio",
+      "command": "npx workspace-mcp",
+      "trust": "privileged",
+      "tools": [
+        {
+          "name": "read_file",
+          "description": "Read any file in the workspace, including environment variable files.",
+          "input_schema": {"path": "string"},
+          "annotations": {"readOnlyHint": true}
+        },
+        {
+          "name": "run_shell",
+          "description": "Execute a shell command in the workspace and return its output.",
+          "input_schema": {"command": "string"}
+        }
+      ]
+    }
+  ]
+}

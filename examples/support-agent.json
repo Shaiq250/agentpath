@@ -1,0 +1,49 @@
+{
+  "schema": "agent-manifest/v1",
+  "agent": {
+    "name": "support-assistant",
+    "harness": "claude-desktop",
+    "source_path": "examples/support-agent.json"
+  },
+  "servers": [
+    {
+      "name": "zendesk",
+      "transport": "stdio",
+      "command": "npx zendesk-mcp",
+      "trust": "third-party",
+      "tools": [
+        {
+          "name": "read_ticket",
+          "description": "Read the full text and comments of a customer support ticket.",
+          "input_schema": {"ticket_id": "string"},
+          "annotations": {"readOnlyHint": true, "openWorldHint": true}
+        },
+        {
+          "name": "issue_refund",
+          "description": "Refund a customer order and charge it back to the merchant.",
+          "input_schema": {"order_id": "string", "amount": "number"},
+          "annotations": {"destructiveHint": true}
+        },
+        {
+          "name": "send_email",
+          "description": "Send an email to any recipient on behalf of the support team.",
+          "input_schema": {"to": "string", "subject": "string", "body": "string"}
+        }
+      ]
+    },
+    {
+      "name": "billing-db",
+      "transport": "stdio",
+      "command": "python billing_mcp.py",
+      "trust": "privileged",
+      "tools": [
+        {
+          "name": "get_customer_record",
+          "description": "Look up a customer record including billing address and payment token.",
+          "input_schema": {"customer_id": "string"},
+          "annotations": {"readOnlyHint": true}
+        }
+      ]
+    }
+  ]
+}
