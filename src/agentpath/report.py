@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from .findings import Finding
+from .findings import Finding, active
 from .model import Agent
 
 SEVERITY_ORDER = ("critical", "high", "medium", "low")
@@ -42,7 +42,30 @@ def _incomplete_block(agent: Agent) -> list[str]:
     return lines
 
 
+def _suppressed_block(findings: list[Finding]) -> list[str]:
+    """Accepted paths, kept visible with the reason someone signed off on."""
+    accepted = [f for f in findings if f.suppressed]
+    if not accepted:
+        return []
+    noun = "path is" if len(accepted) == 1 else "paths are"
+    lines = ["", "## Accepted", "",
+             f"{len(accepted)} {noun} suppressed by policy. These are real findings that "
+             f"someone chose to live with, shown here so the decision stays visible.", ""]
+    for finding in accepted:
+        date = f", {finding.suppression.get('date')}" if finding.suppression.get("date") else ""
+        lines.append(
+            f"- `{finding.source.server}/{finding.source.tool}` -> "
+            f"`{finding.sink.server}/{finding.sink.tool}` ({finding.severity}): "
+            f"{finding.suppression.get('reason', 'no reason recorded')}{date}"
+        )
+    lines.append("")
+    return lines
+
+
 def to_markdown(agent: Agent, findings: list[Finding]) -> str:
+    all_findings = findings
+    accepted_count = sum(1 for f in findings if f.suppressed)
+    findings = active(findings)
     lines: list[str] = []
     lines.append(f"# Attack paths in agent `{agent.name}`")
     lines.append("")
@@ -52,14 +75,24 @@ def to_markdown(agent: Agent, findings: list[Finding]) -> str:
         lines.append(f"Configuration: `{agent.source_path}`")
     server_count = len(agent.servers)
     tool_count = sum(1 for _ in agent.tools())
-    lines.append(f"Servers: {server_count}. Tools: {tool_count}. Findings: {len(findings)}.")
+    suffix = f" Accepted by policy: {accepted_count}." if accepted_count else ""
+    lines.append(f"Servers: {server_count}. Tools: {tool_count}. "
+                 f"Findings: {len(findings)}.{suffix}")
     lines.append("")
     lines.extend(_incomplete_block(agent))
 
     if not findings:
         # The empty result is the one place this tool could do real harm, by
         # letting a scan that saw nothing read as a scan that found nothing.
-        if agent.complete:
+        if agent.complete and accepted_count:
+            lines.append("No outstanding attack paths.")
+            lines.append("")
+            lines.append(
+                f"Everything found was accepted by policy: {accepted_count} "
+                f"{'path' if accepted_count == 1 else 'paths'}, listed below. This is not the "
+                "same as nothing being found."
+            )
+        elif agent.complete:
             lines.append("No attack paths found.")
             lines.append("")
             lines.append(
@@ -76,6 +109,7 @@ def to_markdown(agent: Agent, findings: list[Finding]) -> str:
                 "servers. Re-run the collection so the remaining servers are included before "
                 "drawing any conclusion."
             )
+        lines.extend(_suppressed_block(all_findings))
         lines.append("")
         return "\n".join(lines)
 
@@ -113,6 +147,7 @@ def to_markdown(agent: Agent, findings: list[Finding]) -> str:
                          f"Confidence: {finding.evidence['confidence']}.")
             lines.append("")
 
+    lines.extend(_suppressed_block(all_findings))
     return "\n".join(lines)
 
 
@@ -127,7 +162,8 @@ def to_json(agent: Agent, findings: list[Finding]) -> str:
         "counts": {
             "servers": len(agent.servers),
             "tools": sum(1 for _ in agent.tools()),
-            "findings": len(findings),
+            "findings": len(active(findings)),
+            "accepted": sum(1 for f in findings if f.suppressed),
         },
         "complete": agent.complete,
         "unenumerated": [

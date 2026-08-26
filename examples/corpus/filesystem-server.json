@@ -1,0 +1,14 @@
+{
+  "schema": "agent-manifest/v1",
+  "agent": {"name": "filesystem-agent"},
+  "servers": [
+    {"name": "fs", "trust": "privileged", "tools": [
+      {"name": "read_file", "description": "Read the complete contents of a file from the file system.", "input_schema": {"path": "string"}, "annotations": {"readOnlyHint": true}},
+      {"name": "write_file", "description": "Create a new file or overwrite an existing file with the given content.", "input_schema": {"path": "string", "content": "string"}},
+      {"name": "list_directory", "description": "Get a listing of all files and directories in a path.", "input_schema": {"path": "string"}, "annotations": {"readOnlyHint": true}},
+      {"name": "move_file", "description": "Move or rename a file or directory.", "input_schema": {"source": "string", "destination": "string"}},
+      {"name": "search_files", "description": "Recursively search for files matching a pattern.", "input_schema": {"pattern": "string"}, "annotations": {"readOnlyHint": true}},
+      {"name": "get_file_info", "description": "Return size, timestamps and permissions for a file.", "input_schema": {"path": "string"}, "annotations": {"readOnlyHint": true}}
+    ]}
+  ]
+}

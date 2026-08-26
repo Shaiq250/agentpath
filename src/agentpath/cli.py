@@ -25,6 +25,7 @@ from .discovery import ServerSpec, config_locations, discover
 from .findings import analyze as run_analysis
 from .labels import SEVERITIES, at_least
 from .model import ManifestError, load_manifest, manifest_to_dict
+from .policy import PolicyError, apply_policy, find_policy, load_policy
 from .report import to_json, to_markdown
 
 
@@ -64,6 +65,14 @@ def build_parser() -> argparse.ArgumentParser:
         choices=SEVERITIES,
         default="low",
         help="exit non zero when a finding at this severity or above exists (default: low)",
+    )
+    analyze.add_argument(
+        "--policy",
+        help="path to an .agentpath.yml file (default: one in the current directory)",
+    )
+    analyze.add_argument(
+        "--no-policy", action="store_true",
+        help="ignore any policy file, so nothing is overridden or suppressed",
     )
     analyze.add_argument(
         "--allow-incomplete",
@@ -155,8 +164,23 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
+    policy = None
+    if not args.no_policy:
+        policy_path = Path(args.policy) if args.policy else find_policy()
+        if args.policy and not Path(args.policy).is_file():
+            print(f"error: no policy file at {args.policy}", file=sys.stderr)
+            return 2
+        if policy_path:
+            try:
+                policy = load_policy(policy_path)
+            except PolicyError as exc:
+                print(f"error: {exc}", file=sys.stderr)
+                return 2
+            print(f"using policy {policy_path}", file=sys.stderr)
+
     classify_agent(agent)
-    findings = run_analysis(agent)
+    apply_policy(agent, policy)
+    findings = run_analysis(agent, policy)
 
     render = to_json if args.format == "json" else to_markdown
     text = render(agent, findings)
@@ -170,7 +194,11 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         except BrokenPipeError:  # output piped into head, less and friends
             pass
 
-    triggered = any(at_least(finding.severity, args.fail_on) for finding in findings)
+    triggered = any(
+        at_least(finding.severity, args.fail_on)
+        for finding in findings
+        if not finding.suppressed
+    )
     # An incomplete scan also exits non zero. In CI, a scan that quietly covered
     # half the servers should not pass as green.
     incomplete = not agent.complete and not args.allow_incomplete

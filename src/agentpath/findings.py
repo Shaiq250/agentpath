@@ -32,6 +32,11 @@ class Finding:
     scenario: str
     fix: str
     evidence: dict[str, Any] = field(default_factory=dict)
+    suppression: dict[str, str] = field(default_factory=dict)
+
+    @property
+    def suppressed(self) -> bool:
+        return self.status == "suppressed"
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -46,7 +51,7 @@ def _endpoint(tool: Tool, agent: Agent) -> Endpoint:
     )
 
 
-def analyze(agent: Agent) -> list[Finding]:
+def analyze(agent: Agent, policy=None) -> list[Finding]:
     """Run every rule over the agent and return deduplicated, ranked findings.
 
     When two rules fire on the same pair of tools, the more severe one wins and
@@ -87,6 +92,21 @@ def analyze(agent: Agent) -> list[Finding]:
                 },
             )
 
+    # Accepted paths are marked, never dropped. A suppression nobody can see is
+    # indistinguishable from a bug in the analyser.
+    if policy is not None:
+        for finding in best.values():
+            source = f"{finding.source.server}/{finding.source.tool}"
+            sink = f"{finding.sink.server}/{finding.sink.tool}"
+            acceptance = policy.acceptance_for(finding.rule, source, sink)
+            if acceptance:
+                finding.status = "suppressed"
+                finding.suppression = {
+                    "reason": acceptance.reason,
+                    "date": acceptance.date,
+                    "policy": policy.source_path,
+                }
+
     findings = sorted(
         best.values(),
         key=lambda f: (-severity_rank(f.severity), f.source.server, f.source.tool,
@@ -95,3 +115,8 @@ def analyze(agent: Agent) -> list[Finding]:
     for index, finding in enumerate(findings, start=1):
         finding.id = f"APA-{index:04d}"
     return findings
+
+
+def active(findings: list[Finding]) -> list[Finding]:
+    """Findings that still stand, ignoring the ones a user has accepted."""
+    return [finding for finding in findings if not finding.suppressed]

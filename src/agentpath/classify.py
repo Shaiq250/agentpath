@@ -69,27 +69,33 @@ def _external_noun(tool: Tool) -> str | None:
 NAME_PATTERNS: list[tuple[str, str, float]] = [
     (SECRET_READ, r"\b(secret|credential|token|password|key|env|config|record)\b", 0.7),
     (EGRESS, r"\b(send|post|publish|upload|share|notify|email|webhook|export)\b", 0.7),
-    (STATE_CHANGE, r"\b(create|update|delete|remove|write|merge|refund|transfer|approve|close|assign|cancel)\b", 0.7),
-    (CODE_EXEC, r"\b(exec|execute|run|shell|bash|eval|command|script|install)\b", 0.8),
+    (STATE_CHANGE, r"\b(create|update|delete|remove|write|merge|refund|transfer|approve|close|assign|cancel|move|rename|add|insert|post|upload|publish|send|share|click|fill|submit|comment|react)\b", 0.7),
+    (CODE_EXEC, r"\b(exec|eval|shell|bash|subprocess|terminal)\b", 0.8),
+    (CODE_EXEC, r"\b(run|execute|invoke)[ _](shell|bash|command|script|code|python|node|program)\b", 0.9),
 ]
 
 DESCRIPTION_KEYWORDS: list[tuple[str, tuple[str, ...], float]] = [
     (SECRET_READ, ("secret", "credential", "api key", "password", "token",
                    "private", "environment variable", "customer record",
-                   "payment token", "any file"), 0.5),
-    (EGRESS, ("send an email", "send a", "post to", "publish", "upload", "outbound",
-              "webhook", "recipient"), 0.4),
+                   "payment token", "any file", "profile field", "database"), 0.5),
+    (EGRESS, ("send an email", "send a", "post a", "post to", "publish", "upload",
+              "outbound", "webhook", "recipient"), 0.4),
     (STATE_CHANGE, ("refund", "delete", "modify", "update", "write to", "merge",
                     "charge", "transfer", "cancel"), 0.5),
-    (CODE_EXEC, ("shell", "arbitrary code", "execute", "subprocess",
-                 "interpreter", "script"), 0.6),
+    (CODE_EXEC, ("shell", "arbitrary code", "subprocess", "interpreter",
+                 "shell command", "execute a command", "run a command"), 0.6),
 ]
 
 SCHEMA_PARAMS: list[tuple[str, tuple[str, ...], float]] = [
-    (EGRESS, ("recipient", "to", "webhook_url", "destination", "channel"), 0.5),
+    (EGRESS, ("recipient", "to", "webhook_url", "channel"), 0.5),
     (CODE_EXEC, ("command", "cmd", "code", "script", "shell"), 0.8),
-    (SECRET_READ, ("path", "file_path", "filename"), 0.3),
 ]
+
+# secret-read from a file path only when the tool actually returns the contents.
+CONTENT_READ_VERBS = r"\b(read|get|fetch|load|cat|download|contents)\b"
+PATH_PARAMS = ("path", "file_path", "filename")
+METADATA_WORDS = ("info", "stat", "metadata", "exists", "size", "permissions",
+                  "list", "search", "directory", "dir", "tree")
 
 
 def _add(hits: list[LabelHit], label: str, confidence: float, reason: str) -> None:
@@ -130,6 +136,14 @@ def classify_tool(tool: Tool) -> list[LabelHit]:
             if str(param).lower() in params:
                 _add(hits, label, confidence, f"input schema has parameter {param!r}")
                 break
+
+    path_param = next(
+        (p for p in tool.input_schema if str(p).lower() in PATH_PARAMS), None
+    )
+    if path_param and re.search(CONTENT_READ_VERBS, words + " " + description):
+        if not any(word in words for word in METADATA_WORDS):
+            _add(hits, SECRET_READ, 0.5,
+                 f"returns the contents of a file named by {path_param!r}")
 
     for label, pattern, confidence in NAME_PATTERNS:
         match = re.search(pattern, words)

@@ -113,6 +113,63 @@ Annotations are supplied by the server author, so they raise confidence when
 they signal danger but are never trusted to clear a tool as safe. A tool
 annotated read only whose name says delete is reported, with the conflict noted.
 
+## Correcting it: .agentpath.yml
+
+The classifier guesses from names, descriptions and annotations, so it will be
+wrong about tools specific to your environment. Put a file next to your manifest
+to fix that, and to record paths you have reviewed and decided to live with:
+
+```yaml
+labels:
+  docs/search_handbook: []                     # not an entry point, curated content
+  workspace/read_file:
+    add: [untrusted-read]                      # it is one here, attackers can write there
+    remove: [secret-read]
+
+trust:
+  github: third-party
+  workspace: privileged
+
+accept:
+  - rule: untrusted_read_to_egress
+    source: slack/get_channel_history
+    sink: slack/post_message
+    reason: "Reviewed 2026-09-01, channel is internal only"
+    date: 2026-09-01
+```
+
+Accepted paths are suppressed, not deleted. They stay in the report under their
+own heading with the reason attached, because a suppression nobody can see is
+indistinguishable from a bug. An acceptance without a reason is rejected.
+
+The file is read from the current directory only. Silently inheriting
+suppressions from a parent directory would be a nasty way to lose a finding.
+Use `--policy PATH` to point somewhere else, or `--no-policy` to ignore it.
+
+## How accurate is it
+
+There is a hand labelled corpus in `examples/corpus/`: 30 tools across six
+servers modelled on common ones, with the correct labels written out in
+`ground-truth.json`, including the reasoning for the debatable calls.
+
+```
+python scripts/measure_labels.py
+```
+
+It currently scores 1.00 precision and 1.00 recall on that corpus.
+
+**Do not read that as an accuracy claim.** The rules were tuned until they
+matched this corpus, so the score measures agreement with our own labels on
+tools we already looked at. A corpus collected after tuning would score lower,
+and the honest way to improve this number is to add servers first and fix the
+rules afterwards.
+
+What it is genuinely good for is regressions. Change a rule and every tool whose
+labels move is printed by name, so a fix in one place cannot quietly break
+another. The ground truth is also our judgement rather than an external
+standard, which is why the debatable calls are written down: disagree with a
+specific line rather than with the number.
+
 ## How this compares to what else exists
 
 This is not the first tool in this space and does not claim to be. Snyk Agent
@@ -135,6 +192,9 @@ Three things here are different:
 
 - Findings are candidates. A candidate means the tool combination makes the path
   possible, not that this agent has been observed walking it.
+- The accuracy number above is measured on a corpus the rules were tuned
+  against, so treat it as a regression guard rather than an estimate of
+  performance on servers nobody has looked at.
 - An empty report is not a guarantee of safety.
 - File reading tools are not treated as untrusted entry points yet, even though
   an attacker who can write a file could use one as an entry point. Entry point

@@ -1,0 +1,84 @@
+{
+  "_note": "Hand assigned labels for every tool in the corpus. This is our own judgement, not an independent benchmark, and the reasoning for the debatable ones is written down so anyone can disagree with a specific call rather than with the number.",
+  "_debatable": {
+    "fs/read_file": "Labelled secret-read but NOT untrusted-read. Whether a file is attacker controlled depends entirely on the directory, which the tool definition does not tell us. Environments where it is an entry point are exactly what .agentpath.yml is for.",
+    "gh/get_file_contents": "Same reasoning as fs/read_file. Repository contents can be attacker influenced through a pull request, but that is a property of the workflow, not of the tool.",
+    "pg/run_query": "secret-read: a read only query against production still reads sensitive data. Not state-change, because the tool declares itself read only and its name agrees.",
+    "browser/click": "state-change: clicking is an action on a remote system with real consequences. Debatable, and we say so.",
+    "slack/list_users": "secret-read: profile fields routinely carry contact details worth exfiltrating.",
+    "slack/upload_file": "egress and state-change. Putting a file into a channel both moves data out and changes the channel. Labelled the same way as post_message for consistency."
+  },
+  "tools": {
+    "fs/read_file": [
+      "secret-read"
+    ],
+    "fs/write_file": [
+      "state-change"
+    ],
+    "fs/list_directory": [],
+    "fs/move_file": [
+      "state-change"
+    ],
+    "fs/search_files": [],
+    "fs/get_file_info": [],
+    "gh/get_issue": [
+      "untrusted-read"
+    ],
+    "gh/create_issue_comment": [
+      "egress",
+      "state-change"
+    ],
+    "gh/merge_pull_request": [
+      "state-change"
+    ],
+    "gh/get_file_contents": [
+      "secret-read"
+    ],
+    "gh/search_code": [
+      "untrusted-read"
+    ],
+    "gh/list_workflow_runs": [],
+    "slack/get_channel_history": [
+      "untrusted-read"
+    ],
+    "slack/post_message": [
+      "egress",
+      "state-change"
+    ],
+    "slack/list_users": [
+      "secret-read"
+    ],
+    "slack/add_reaction": [
+      "state-change"
+    ],
+    "slack/upload_file": [
+      "egress",
+      "state-change"
+    ],
+    "pg/run_query": [
+      "secret-read"
+    ],
+    "pg/list_tables": [],
+    "pg/describe_table": [],
+    "pg/get_credentials": [
+      "secret-read"
+    ],
+    "browser/navigate": [
+      "untrusted-read"
+    ],
+    "browser/screenshot": [],
+    "browser/click": [
+      "state-change"
+    ],
+    "browser/evaluate_script": [
+      "code-exec"
+    ],
+    "browser/fill_form": [
+      "state-change"
+    ],
+    "docs/search_handbook": [],
+    "docs/get_section": [],
+    "docs/list_topics": [],
+    "docs/get_glossary_entry": []
+  }
+}

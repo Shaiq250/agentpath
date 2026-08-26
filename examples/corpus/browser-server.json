@@ -1,0 +1,13 @@
+{
+  "schema": "agent-manifest/v1",
+  "agent": {"name": "browser-agent"},
+  "servers": [
+    {"name": "browser", "trust": "third-party", "tools": [
+      {"name": "navigate", "description": "Open a web page in the browser and return its text.", "input_schema": {"url": "string"}, "annotations": {"openWorldHint": true}},
+      {"name": "screenshot", "description": "Capture a screenshot of the current page.", "input_schema": {}, "annotations": {"readOnlyHint": true}},
+      {"name": "click", "description": "Click an element on the current page.", "input_schema": {"selector": "string"}},
+      {"name": "evaluate_script", "description": "Run a JavaScript expression in the page and return the result.", "input_schema": {"script": "string"}},
+      {"name": "fill_form", "description": "Type a value into a form field on the current page.", "input_schema": {"selector": "string", "value": "string"}}
+    ]}
+  ]
+}

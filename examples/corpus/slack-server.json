@@ -1,0 +1,13 @@
+{
+  "schema": "agent-manifest/v1",
+  "agent": {"name": "slack-agent"},
+  "servers": [
+    {"name": "slack", "trust": "internal", "tools": [
+      {"name": "get_channel_history", "description": "Retrieve recent messages from a channel, including messages from guest users.", "input_schema": {"channel_id": "string"}, "annotations": {"readOnlyHint": true, "openWorldHint": true}},
+      {"name": "post_message", "description": "Post a message to a channel.", "input_schema": {"channel": "string", "text": "string"}},
+      {"name": "list_users", "description": "List the members of the workspace with their profile fields.", "input_schema": {}, "annotations": {"readOnlyHint": true}},
+      {"name": "add_reaction", "description": "Add an emoji reaction to a message.", "input_schema": {"timestamp": "string"}},
+      {"name": "upload_file", "description": "Upload a file to a channel.", "input_schema": {"channel": "string", "content": "string"}}
+    ]}
+  ]
+}

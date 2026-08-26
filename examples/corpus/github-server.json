@@ -1,0 +1,14 @@
+{
+  "schema": "agent-manifest/v1",
+  "agent": {"name": "github-agent"},
+  "servers": [
+    {"name": "gh", "trust": "third-party", "tools": [
+      {"name": "get_issue", "description": "Get the body and comments of an issue, including comments from outside contributors.", "input_schema": {"owner": "string", "repo": "string", "issue_number": "integer"}, "annotations": {"readOnlyHint": true, "openWorldHint": true}},
+      {"name": "create_issue_comment", "description": "Post a comment on an issue or pull request.", "input_schema": {"body": "string"}},
+      {"name": "merge_pull_request", "description": "Merge a pull request into its base branch.", "input_schema": {"pull_number": "integer"}, "annotations": {"destructiveHint": true}},
+      {"name": "get_file_contents", "description": "Read the contents of a file from a repository.", "input_schema": {"path": "string"}, "annotations": {"readOnlyHint": true}},
+      {"name": "search_code", "description": "Search code across public repositories.", "input_schema": {"q": "string"}, "annotations": {"readOnlyHint": true, "openWorldHint": true}},
+      {"name": "list_workflow_runs", "description": "List recent workflow runs for a repository.", "input_schema": {"repo": "string"}, "annotations": {"readOnlyHint": true}}
+    ]}
+  ]
+}

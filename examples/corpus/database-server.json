@@ -1,0 +1,12 @@
+{
+  "schema": "agent-manifest/v1",
+  "agent": {"name": "database-agent"},
+  "servers": [
+    {"name": "pg", "trust": "privileged", "tools": [
+      {"name": "run_query", "description": "Execute a read only SQL query against the production database.", "input_schema": {"sql": "string"}, "annotations": {"readOnlyHint": true}},
+      {"name": "list_tables", "description": "List the tables in the connected schema.", "input_schema": {}, "annotations": {"readOnlyHint": true}},
+      {"name": "describe_table", "description": "Return the column definitions for a table.", "input_schema": {"table": "string"}, "annotations": {"readOnlyHint": true}},
+      {"name": "get_credentials", "description": "Return the stored connection credentials for a configured datasource.", "input_schema": {"datasource": "string"}, "annotations": {"readOnlyHint": true}}
+    ]}
+  ]
+}

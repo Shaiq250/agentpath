@@ -1,0 +1,12 @@
+{
+  "schema": "agent-manifest/v1",
+  "agent": {"name": "docs-agent"},
+  "servers": [
+    {"name": "docs", "trust": "internal", "tools": [
+      {"name": "search_handbook", "description": "Search the curated internal handbook and return matching sections.", "input_schema": {"terms": "string"}, "annotations": {"readOnlyHint": true}},
+      {"name": "get_section", "description": "Return one numbered section of the curated internal handbook.", "input_schema": {"section": "string"}, "annotations": {"readOnlyHint": true}},
+      {"name": "list_topics", "description": "List the topics covered by the handbook.", "input_schema": {}, "annotations": {"readOnlyHint": true}},
+      {"name": "get_glossary_entry", "description": "Return the definition of a term from the internal glossary.", "input_schema": {"term": "string"}, "annotations": {"readOnlyHint": true}}
+    ]}
+  ]
+}
