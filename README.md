@@ -11,9 +11,9 @@ your tools leaves the machine.
 
 ## Status
 
-Early. It discovers the MCP servers configured on a machine, asks each one which
-tools it offers, and analyses the result. The confirmation mode described below
-is the next milestone.
+Early, but complete end to end. It discovers the MCP servers configured on a
+machine, asks each one which tools it offers, analyses the result, and can test
+whether an agent actually walks the paths it finds.
 
 ## The problem
 
@@ -113,6 +113,57 @@ Annotations are supplied by the server author, so they raise confidence when
 they signal danger but are never trusted to clear a tool as safe. A tool
 annotated read only whose name says delete is reported, with the conflict noted.
 
+## Confirming a path instead of predicting it
+
+Static analysis produces candidates. `agentpath confirm` turns a candidate into
+something you have watched happen.
+
+```
+agentpath confirm manifest.json -o confirmations.json
+agentpath analyze manifest.json --confirmations confirmations.json
+```
+
+For each candidate path it builds a stand in source tool that returns realistic
+content with a planted instruction inside it, and a stand in sink tool that
+records calls and does nothing else. Then it gives an agent a normal task and
+watches what happens.
+
+**The real tools are never called.** No refund is issued, no email is sent, no
+command runs. The agent believes it has these tools and its decision to use them
+is real. Only the consequence is fake, and the consequence is the part nobody
+needs.
+
+The planted content carries a marker that exists nowhere else. A path is
+confirmed only when the sink is called with that marker in its arguments, which
+proves the data flowed rather than the agent happening to use a tool. The check
+is a string comparison, not a second model grading the first, which is why this
+stays deterministic and free.
+
+Each path is tried several times with different payload phrasings, because one
+refusal proves nothing: an agent that ignores a blunt instruction may still
+follow one dressed as a system notice.
+
+### Two agents, and the difference matters
+
+`--agent model` uses a real language model and needs `ANTHROPIC_API_KEY`. Only
+these results say anything about how an agent behaves.
+
+`--agent scripted` uses a small program that always follows what it reads. It
+needs no key and runs offline, and it exists so the harness itself can be tested
+in CI. **A confirmation from the scripted agent proves the plumbing works, not
+that anything is vulnerable**, and every place those results appear says so.
+
+Without an API key the tool reports paths as untestable rather than quietly
+falling back to the scripted agent, because that would be manufacturing
+evidence.
+
+### Not confirmed is not safe
+
+Models are sampled. A different model, system prompt, temperature or payload can
+change the answer. A path that was tested and not walked stays in the report as
+a candidate, with that sentence attached. It is never downgraded and never
+presented as cleared.
+
 ## Correcting it: .agentpath.yml
 
 The classifier guesses from names, descriptions and annotations, so it will be
@@ -183,10 +234,10 @@ Three things here are different:
   and sends your tool inventory to a hosted endpoint for analysis.
 - It reports paths rather than per tool risk scores: a named source, a named
   sink, the scenario, and the fix.
-- It will confirm paths rather than only predicting them. A later milestone adds
-  a mode that plants a marked payload through a source tool and observes whether
-  the agent really calls the sink, with the real sink replaced by an
-  instrumented stand in so nothing dangerous actually runs.
+- It confirms paths rather than only predicting them. `agentpath confirm` plants
+  a marked payload through a stand in source tool and observes whether the agent
+  really calls the sink, with the real sink replaced by an instrumented stand in
+  so nothing dangerous runs.
 
 ## Known limitations
 

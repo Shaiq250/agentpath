@@ -33,6 +33,7 @@ class Finding:
     fix: str
     evidence: dict[str, Any] = field(default_factory=dict)
     suppression: dict[str, str] = field(default_factory=dict)
+    confirmation: dict[str, Any] = field(default_factory=dict)
 
     @property
     def suppressed(self) -> bool:

@@ -19,7 +19,9 @@ import json
 import sys
 from pathlib import Path
 
+from .agents import AgentUnavailable, ModelAgent, ScriptedAgent
 from .classify import classify_agent
+from .confirm import apply_confirmations, confirm_all
 from .collect import collect as run_collect
 from .discovery import ServerSpec, config_locations, discover
 from .findings import analyze as run_analysis
@@ -56,6 +58,30 @@ def build_parser() -> argparse.ArgumentParser:
     collect.add_argument("--no-cache", action="store_true",
                          help="ignore cached tool lists and re-enumerate everything")
 
+    confirm = sub.add_parser(
+        "confirm",
+        help="test whether an agent actually walks the candidate paths",
+        description=(
+            "For each candidate path, stands up a stand in source tool that returns "
+            "content with a planted instruction, and a stand in sink tool that records "
+            "calls and does nothing else. The real tools are never called: nothing is "
+            "sent, refunded or executed. A path is confirmed only when the sink is "
+            "called with a marker that existed nowhere but inside the planted content."
+        ),
+    )
+    confirm.add_argument("manifest", help="path to an agent manifest JSON file")
+    confirm.add_argument("-o", "--out", default="confirmations.json",
+                         help="where to write the results (default: confirmations.json)")
+    confirm.add_argument("--agent", choices=("model", "scripted"), default="model",
+                         help="model uses a real language model and needs an API key; "
+                              "scripted uses an offline stand in that only proves the "
+                              "harness works (default: model)")
+    confirm.add_argument("--model", default="claude-sonnet-4-6",
+                         help="model id to test, when --agent model")
+    confirm.add_argument("--attempts", type=int, default=3,
+                         help="payload variations to try per path (default: 3)")
+    confirm.add_argument("--policy", help="path to an .agentpath.yml file")
+
     analyze = sub.add_parser("analyze", help="analyse an agent manifest, offline")
     analyze.add_argument("manifest", help="path to an agent manifest JSON file")
     analyze.add_argument("-o", "--out", help="write the report to a file instead of stdout")
@@ -73,6 +99,10 @@ def build_parser() -> argparse.ArgumentParser:
     analyze.add_argument(
         "--no-policy", action="store_true",
         help="ignore any policy file, so nothing is overridden or suppressed",
+    )
+    analyze.add_argument(
+        "--confirmations",
+        help="a confirmations.json from `agentpath confirm`, to fold into the report",
     )
     analyze.add_argument(
         "--allow-incomplete",
@@ -155,6 +185,93 @@ def cmd_collect(args: argparse.Namespace) -> int:
     return 0
 
 
+# ---------------------------------------------------------------- confirm
+
+def _load_policy_for(args) -> tuple[object, int]:
+    """Shared policy loading. Returns (policy, error_code)."""
+    if getattr(args, "no_policy", False):
+        return None, 0
+    policy_path = Path(args.policy) if args.policy else find_policy()
+    if args.policy and not Path(args.policy).is_file():
+        print(f"error: no policy file at {args.policy}", file=sys.stderr)
+        return None, 2
+    if not policy_path:
+        return None, 0
+    try:
+        policy = load_policy(policy_path)
+    except PolicyError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return None, 2
+    print(f"using policy {policy_path}", file=sys.stderr)
+    return policy, 0
+
+
+def cmd_confirm(args: argparse.Namespace) -> int:
+    try:
+        agent_model = load_manifest(args.manifest)
+    except (ManifestError, OSError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    policy, code = _load_policy_for(args)
+    if code:
+        return code
+
+    classify_agent(agent_model)
+    apply_policy(agent_model, policy)
+    findings = run_analysis(agent_model, policy)
+    candidates = [f for f in findings if not f.suppressed]
+
+    if not candidates:
+        print("No candidate paths to confirm.", file=sys.stderr)
+        return 0
+
+    if args.agent == "scripted":
+        agent = ScriptedAgent("follows")
+        print("Using the scripted stand in. This tests the harness, not a real agent.",
+              file=sys.stderr)
+    else:
+        try:
+            agent = ModelAgent(model=args.model)
+        except AgentUnavailable as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            print("Set ANTHROPIC_API_KEY, or use --agent scripted to test the harness "
+                  "without a model.", file=sys.stderr)
+            return 2
+
+    print(f"Confirming {len(candidates)} candidate paths against {agent.name}.",
+          file=sys.stderr)
+    print("Stand in tools only: nothing is sent, refunded or executed.", file=sys.stderr)
+
+    def narrate(event, payload):
+        if event == "start":
+            print(f"  testing {payload.id}: {payload.source.tool} -> {payload.sink.tool}",
+                  file=sys.stderr)
+        else:
+            mark = {"confirmed": "CONFIRMED", "not_confirmed": "not confirmed",
+                    "untestable": "untestable"}[payload.verdict]
+            print(f"    {mark} ({payload.succeeded}/{payload.attempts})", file=sys.stderr)
+
+    results = confirm_all(candidates, agent, args.attempts, on_event=narrate)
+
+    Path(args.out).write_text(
+        json.dumps({
+            "schema": "agentpath-confirmations/v1",
+            "agent": {"kind": agent.kind, "name": agent.name,
+                      "trustworthy": agent.trustworthy},
+            "results": [result.to_dict() for result in results],
+        }, indent=2),
+        encoding="utf-8",
+    )
+    confirmed = sum(1 for result in results if result.verdict == "confirmed")
+    print(f"\nWrote {args.out}: {confirmed} of {len(results)} paths confirmed.",
+          file=sys.stderr)
+    if not agent.trustworthy:
+        print("Reminder: these results came from a scripted stand in and say nothing "
+              "about real agent behaviour.", file=sys.stderr)
+    return 0
+
+
 # ---------------------------------------------------------------- analyze
 
 def cmd_analyze(args: argparse.Namespace) -> int:
@@ -164,23 +281,21 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
-    policy = None
-    if not args.no_policy:
-        policy_path = Path(args.policy) if args.policy else find_policy()
-        if args.policy and not Path(args.policy).is_file():
-            print(f"error: no policy file at {args.policy}", file=sys.stderr)
-            return 2
-        if policy_path:
-            try:
-                policy = load_policy(policy_path)
-            except PolicyError as exc:
-                print(f"error: {exc}", file=sys.stderr)
-                return 2
-            print(f"using policy {policy_path}", file=sys.stderr)
+    policy, code = _load_policy_for(args)
+    if code:
+        return code
 
     classify_agent(agent)
     apply_policy(agent, policy)
     findings = run_analysis(agent, policy)
+
+    if args.confirmations:
+        try:
+            payload = json.loads(Path(args.confirmations).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            print(f"error: could not read confirmations: {exc}", file=sys.stderr)
+            return 2
+        apply_confirmations(findings, payload.get("results", []))
 
     render = to_json if args.format == "json" else to_markdown
     text = render(agent, findings)
@@ -211,6 +326,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_analyze(args)
     if args.command == "collect":
         return cmd_collect(args)
+    if args.command == "confirm":
+        return cmd_confirm(args)
     return 2
 
 

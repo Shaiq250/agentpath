@@ -10,6 +10,13 @@ from .model import Agent
 
 SEVERITY_ORDER = ("critical", "high", "medium", "low")
 
+STATUS_LINE = {
+    "confirmed": "**Confirmed.** {agent} called `{sink}` with the planted marker in "
+                 "{succeeded} of {attempts} attempts.",
+    "not_confirmed": "**Not confirmed.** {agent} did not call `{sink}` with the planted "
+                     "marker in {attempts} attempts.",
+}
+
 INCOMPLETE_HEADLINE = "Scan incomplete."
 
 INCOMPLETE_NOTE = (
@@ -19,10 +26,16 @@ INCOMPLETE_NOTE = (
 )
 
 DISCLAIMER = (
-    "Every finding below is a candidate produced by static analysis. A candidate means the "
-    "combination of tools makes the path possible, not that this agent has been observed "
-    "walking it. Confirmation mode, which watches whether the agent really calls the sink, "
-    "arrives in a later version."
+    "Findings marked as candidates come from static analysis. A candidate means the "
+    "combination of tools makes the path possible, not that any agent has been observed "
+    "walking it. Run `agentpath confirm` to test whether an agent actually does."
+)
+
+CONFIRMED_DISCLAIMER = (
+    "Findings below are marked with what was observed. A candidate was not tested. "
+    "Confirmed means an agent was seen calling the sink with a marker that existed only "
+    "inside planted content. Not confirmed means it was tested and did not, which is not "
+    "the same as being safe."
 )
 
 
@@ -39,6 +52,56 @@ def _incomplete_block(agent: Agent) -> list[str]:
     lines.append(">")
     lines.append(f"> {INCOMPLETE_NOTE}")
     lines.append("")
+    return lines
+
+
+def _confirmation_lines(finding: Finding) -> list[str]:
+    """Report what was actually observed, and never more than that."""
+    data = finding.confirmation
+    if not data:
+        return []
+
+    template = STATUS_LINE.get(data.get("verdict", ""))
+    if not template:
+        return []
+
+    agent = ("A scripted stand in" if not data.get("trustworthy")
+             else f"`{data.get('agent_name', 'the agent')}`")
+    lines = [template.format(
+        agent=agent,
+        sink=f"{finding.sink.server}/{finding.sink.tool}",
+        succeeded=data.get("succeeded", 0),
+        attempts=data.get("attempts", 0),
+    )]
+    if data.get("observed_call"):
+        lines.append("")
+        lines.append(f"Observed call: `{data['observed_call']}`")
+    if data.get("detail"):
+        lines.append("")
+        lines.append(data["detail"])
+    if data.get("caveat"):
+        lines.append("")
+        lines.append(data["caveat"])
+    lines.append("")
+    return lines
+
+
+def _confirmation_summary(findings: list[Finding]) -> list[str]:
+    tested = [f for f in findings if f.confirmation]
+    if not tested:
+        return []
+    confirmed = [f for f in tested if f.confirmation.get("verdict") == "confirmed"]
+    untrusted = [f for f in tested if not f.confirmation.get("trustworthy")]
+
+    lines = [f"**Confirmation: {len(confirmed)} of {len(tested)} candidate paths were "
+             f"observed being walked.**", ""]
+    if untrusted:
+        lines.append(
+            f"{len(untrusted)} of these were tested against a scripted stand in rather than "
+            f"a language model. Those results demonstrate that the test harness works, not "
+            f"that a real agent behaves this way."
+        )
+        lines.append("")
     return lines
 
 
@@ -117,8 +180,10 @@ def to_markdown(agent: Agent, findings: list[Finding]) -> str:
     summary = ", ".join(f"{counts[level]} {level}" for level in SEVERITY_ORDER if counts[level])
     lines.append(f"**Summary: {summary}.**")
     lines.append("")
-    lines.append(DISCLAIMER)
+    lines.append(CONFIRMED_DISCLAIMER if any(f.confirmation for f in findings)
+                 else DISCLAIMER)
     lines.append("")
+    lines.extend(_confirmation_summary(findings))
 
     for level in SEVERITY_ORDER:
         group = [f for f in findings if f.severity == level]
@@ -132,6 +197,7 @@ def to_markdown(agent: Agent, findings: list[Finding]) -> str:
             lines.append(f"`{finding.source.server}/{finding.source.tool}` "
                          f"-> agent -> `{finding.sink.server}/{finding.sink.tool}`")
             lines.append("")
+            lines.extend(_confirmation_lines(finding))
             if finding.crosses_trust_boundary:
                 lines.append(f"This path crosses a trust boundary: the source sits in the "
                              f"`{finding.source.trust}` domain and the sink in "
@@ -164,6 +230,15 @@ def to_json(agent: Agent, findings: list[Finding]) -> str:
             "tools": sum(1 for _ in agent.tools()),
             "findings": len(active(findings)),
             "accepted": sum(1 for f in findings if f.suppressed),
+        },
+        "confirmation": {
+            "tested": sum(1 for f in findings if f.confirmation),
+            "confirmed": sum(1 for f in findings
+                             if f.confirmation.get("verdict") == "confirmed"),
+            "from_scripted_agent_only": all(
+                not f.confirmation.get("trustworthy")
+                for f in findings if f.confirmation
+            ) if any(f.confirmation for f in findings) else False,
         },
         "complete": agent.complete,
         "unenumerated": [
