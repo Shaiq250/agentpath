@@ -1,0 +1,806 @@
+{
+  "schema": "agent-manifest/v1",
+  "_source": "getsentry/sentry-mcp, packages/mcp-core/src/tools/catalog, extracted from source",
+  "_note": "Tool names, descriptions, parameters and annotations copied from the real server. Neither this project's author nor its classifier had seen these tools before this batch was measured.",
+  "agent": {
+    "name": "sentry-agent",
+    "harness": "held-out-corpus-2",
+    "source_path": "examples/heldout-2/sentry-server.json"
+  },
+  "servers": [
+    {
+      "name": "sentry",
+      "transport": "stdio",
+      "command": "mcp-server-sentry",
+      "trust": "third-party",
+      "tools": [
+        {
+          "name": "add_issue_note",
+          "description": "Add a human-visible comment to a Sentry issue's activity feed.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "regionUrl": "string",
+            "issueId": "string",
+            "issueUrl": "string"
+          },
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "add_team_to_project",
+          "description": "Grant a team access to an existing Sentry project.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "regionUrl": "string",
+            "projectSlug": "string",
+            "teamSlug": "string"
+          },
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": false,
+            "idempotentHint": true,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "analyze_issue_with_seer",
+          "description": "Use Seer to analyze production errors and get detailed root cause analysis with specific code fixes.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "regionUrl": "string",
+            "issueId": "string",
+            "issueUrl": "string"
+          },
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "create_dsn",
+          "description": "Create an additional DSN for an EXISTING project.",
+          "input_schema": {
+            "id": "string",
+            "name": "string",
+            "dsn": "string",
+            "organizationSlug": "string",
+            "regionUrl": "string",
+            "projectSlug": "string"
+          },
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "create_project",
+          "description": "Create a new project in Sentry (provisions DSN automatically).",
+          "input_schema": {
+            "organizationSlug": "string",
+            "regionUrl": "string",
+            "teamSlug": "string",
+            "slug": "string",
+            "platform": "string"
+          },
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "create_team",
+          "description": "Create a new team in Sentry.",
+          "input_schema": {
+            "id": "string",
+            "slug": "string",
+            "name": "string",
+            "organizationSlug": "string",
+            "regionUrl": "string"
+          },
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "create_uptime_monitor",
+          "description": "Create a Sentry HTTP uptime monitor.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "regionUrl": "string",
+            "projectSlug": "string",
+            "name": "string",
+            "url": "string",
+            "intervalSeconds": "string",
+            "timeoutMs": "string",
+            "method": "string",
+            "headers": "string",
+            "status": "string",
+            "owner": "string"
+          },
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "delete_uptime_monitor",
+          "description": "Delete a Sentry HTTP uptime monitor.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "regionUrl": "string",
+            "projectSlug": "string"
+          },
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "idempotentHint": true,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "find_alert_rules",
+          "description": "Find Sentry alert rules.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "regionUrl": "string",
+            "projectSlug": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "find_dashboards",
+          "description": "Find Sentry dashboards in an organization.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "regionUrl": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "find_dsns",
+          "description": "List all Sentry DSNs for a specific project.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "regionUrl": "string",
+            "projectSlug": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "find_monitors",
+          "description": "Find Sentry cron monitors.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "regionUrl": "string",
+            "projectSlug": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "find_organizations",
+          "description": "Find organizations that the user has access to in Sentry.",
+          "input_schema": {
+            "query": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "find_projects",
+          "description": "Find projects in Sentry.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "regionUrl": "string",
+            "query": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "find_releases",
+          "description": "Find releases in Sentry.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "regionUrl": "string",
+            "projectSlug": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "find_teams",
+          "description": "Find teams in an organization in Sentry.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "regionUrl": "string",
+            "query": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "find_uptime_monitors",
+          "description": "Find Sentry uptime monitors.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "regionUrl": "string",
+            "projectSlug": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "get_agent_conversation_details",
+          "description": "Fetch the chronological transcript and debugging details for one agent conversation, formerly called an AI conversation.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "regionUrl": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "get_alert_rule",
+          "description": "Get details for a Sentry alert rule.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "regionUrl": "string",
+            "projectSlug": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "get_dashboard_details",
+          "description": "Get detailed information about a specific Sentry dashboard.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "regionUrl": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "get_doc",
+          "description": "Fetch the full markdown content of a Sentry documentation page.",
+          "input_schema": {},
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "get_event_attachment",
+          "description": "Download attachments from a Sentry event.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "projectSlug": "string",
+            "eventId": "string",
+            "attachmentId": "string",
+            "regionUrl": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "get_event_stacktrace",
+          "description": "Get a full thread stacktrace from a specific Sentry event.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "regionUrl": "string",
+            "issueId": "string",
+            "eventId": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "get_issue_activity",
+          "description": "Get the activity feed and comments for a Sentry issue.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "regionUrl": "string",
+            "issueId": "string",
+            "issueUrl": "string",
+            "includeComments": "string",
+            "limit": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "get_issue_breadcrumbs",
+          "description": "Get the breadcrumb trail from a Sentry issue event.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "regionUrl": "string",
+            "issueId": "string",
+            "issueUrl": "string",
+            "eventId": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "get_issue_details",
+          "description": "Get detailed information about a specific Sentry issue by ID.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "regionUrl": "string",
+            "issueId": "string",
+            "eventId": "string",
+            "issueUrl": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "get_issue_tag_values",
+          "description": "Get tag value distribution for a specific Sentry issue.",
+          "input_schema": {
+            "key": "string",
+            "name": "string",
+            "totalValues": "string",
+            "topValues": "string",
+            "organizationSlug": "string",
+            "regionUrl": "string",
+            "issueId": "string",
+            "issueUrl": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "get_issue_user_reports",
+          "description": "Get legacy User Reports or crash-report feedback attached to a Sentry issue.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "regionUrl": "string",
+            "issueId": "string",
+            "issueUrl": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "get_latest_base_snapshot",
+          "description": "Get the latest UI screenshots/images for an app from the preprod snapshot system.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "regionUrl": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "get_monitor_details",
+          "description": "Get details for a Sentry cron monitor.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "regionUrl": "string",
+            "monitorSlug": "string",
+            "period": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "get_profile_details",
+          "description": "Inspect a specific Sentry profile in detail.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "regionUrl": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "get_profile",
+          "description": "Analyze CPU profiling data to identify performance bottlenecks and detect regressions.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "regionUrl": "string",
+            "period": "string",
+            "compareAgainstPeriod": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "get_release_details",
+          "description": "Get details for a Sentry release.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "regionUrl": "string",
+            "releaseVersion": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "get_replay_details",
+          "description": "Get high-level information about a specific Sentry replay by URL or replay ID.",
+          "input_schema": {
+            "replayUrl": "string",
+            "organizationSlug": "string",
+            "replayId": "string",
+            "regionUrl": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "get_sentry_resource",
+          "description": "",
+          "input_schema": {
+            "organizationSlug": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "get_snapshot_image",
+          "description": "Get metadata and image content for one image in a preprod snapshot.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "regionUrl": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "get_snapshot",
+          "description": "",
+          "input_schema": {
+            "organizationSlug": "string",
+            "regionUrl": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "get_span_details",
+          "description": "Get detailed information about a specific span within a Sentry trace.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "regionUrl": "string",
+            "traceId": "string",
+            "spanId": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "get_trace_details",
+          "description": "Get detailed information about a specific Sentry trace by ID.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "regionUrl": "string",
+            "traceId": "string",
+            "spanId": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "get_uptime_monitor_details",
+          "description": "Get details for a Sentry uptime monitor, including recent checks.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "regionUrl": "string",
+            "projectSlug": "string",
+            "period": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "onboarding_status_update",
+          "description": "Update the progress shown in Sentry's agentic onboarding UI.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "regionUrl": "string"
+          },
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": false,
+            "idempotentHint": true,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "remove_team_from_project",
+          "description": "Revoke a team's access to an existing Sentry project.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "regionUrl": "string",
+            "projectSlug": "string",
+            "teamSlug": "string"
+          },
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "search_agent_conversations",
+          "description": "Search Sentry Agent Conversations, formerly called AI Conversations, and return one summary row per conversation.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "period": "string",
+            "limit": "string",
+            "regionUrl": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "search_docs",
+          "description": "",
+          "input_schema": {
+            "guide": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "search_events",
+          "description": "Search Sentry events and replays. Use for event counts/statistics.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "projectSlug": "string",
+            "period": "string",
+            "regionUrl": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "search_issue_events",
+          "description": "Search and filter events within a specific issue.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "period": "string",
+            "projectSlug": "string",
+            "regionUrl": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "search_issues",
+          "description": "Search for grouped issues/problems in Sentry - returns a LIST of issues, NOT counts or aggregations.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "regionUrl": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "update_dsn",
+          "description": "Update settings for an existing DSN (client key) in a project, such as name, active status, rate limit, and loader script options.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "regionUrl": "string",
+            "projectSlug": "string"
+          },
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "idempotentHint": true,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "update_issue",
+          "description": "Update a Sentry issue's status or assignment.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "regionUrl": "string",
+            "issueId": "string",
+            "issueUrl": "string",
+            "status": "string",
+            "assignedTo": "string",
+            "ignoreMode": "string",
+            "ignoreDurationMinutes": "string",
+            "ignoreCount": "string",
+            "ignoreWindowMinutes": "string",
+            "ignoreUserCount": "string",
+            "ignoreUserWindowMinutes": "string",
+            "reason": "string"
+          },
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "idempotentHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "update_project",
+          "description": "Update project metadata in Sentry, such as name, slug, and platform.",
+          "input_schema": {
+            "id": "string",
+            "slug": "string",
+            "name": "string",
+            "platform": "string",
+            "organizationSlug": "string",
+            "regionUrl": "string",
+            "projectSlug": "string"
+          },
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "idempotentHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "update_uptime_monitor",
+          "description": "Update a Sentry HTTP uptime monitor.",
+          "input_schema": {
+            "organizationSlug": "string",
+            "regionUrl": "string",
+            "projectSlug": "string",
+            "name": "string",
+            "url": "string",
+            "intervalSeconds": "string",
+            "timeoutMs": "string",
+            "method": "string",
+            "headers": "string",
+            "status": "string",
+            "owner": "string",
+            "traceSampling": "string",
+            "responseCaptureEnabled": "string",
+            "recoveryThreshold": "string",
+            "downtimeThreshold": "string"
+          },
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "idempotentHint": true,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "whoami",
+          "description": "Identify the authenticated user in Sentry.",
+          "input_schema": {
+            "id": "string",
+            "name": "string",
+            "email": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        }
+      ]
+    }
+  ]
+}

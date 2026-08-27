@@ -1,0 +1,211 @@
+{
+  "schema": "agent-manifest/v1",
+  "_source": "cloudflare/mcp-server-cloudflare, *.tools.ts, extracted from source",
+  "_note": "Tool names, descriptions, parameters and annotations copied from the real server. Neither this project's author nor its classifier had seen these tools before this batch was measured.",
+  "agent": {
+    "name": "cloudflare-agent",
+    "harness": "held-out-corpus-2",
+    "source_path": "examples/heldout-2/cloudflare-server.json"
+  },
+  "servers": [
+    {
+      "name": "cloudflare",
+      "transport": "stdio",
+      "command": "mcp-server-cloudflare",
+      "trust": "privileged",
+      "tools": [
+        {
+          "name": "d1_databases_list",
+          "description": "List all of the D1 databases in your Cloudflare account",
+          "input_schema": {
+            "inputSchema": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true
+          }
+        },
+        {
+          "name": "d1_database_create",
+          "description": "Create a new D1 database in your Cloudflare account",
+          "input_schema": {
+            "inputSchema": "string"
+          },
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": false
+          }
+        },
+        {
+          "name": "d1_database_delete",
+          "description": "Delete a d1 database in your Cloudflare account",
+          "input_schema": {
+            "inputSchema": "string"
+          },
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": true
+          }
+        },
+        {
+          "name": "d1_database_get",
+          "description": "Get a D1 database in your Cloudflare account",
+          "input_schema": {
+            "inputSchema": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true
+          }
+        },
+        {
+          "name": "d1_database_query",
+          "description": "Query a D1 database in your Cloudflare account",
+          "input_schema": {
+            "inputSchema": "string",
+            "database_id": "string"
+          },
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": false
+          }
+        },
+        {
+          "name": "r2_buckets_list",
+          "description": "List r2 buckets in your Cloudflare account",
+          "input_schema": {
+            "inputSchema": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true
+          }
+        },
+        {
+          "name": "r2_bucket_create",
+          "description": "Create a new r2 bucket in your Cloudflare account",
+          "input_schema": {
+            "inputSchema": "string"
+          },
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": false
+          }
+        },
+        {
+          "name": "r2_bucket_get",
+          "description": "Get details about a specific R2 bucket",
+          "input_schema": {
+            "inputSchema": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true
+          }
+        },
+        {
+          "name": "r2_bucket_delete",
+          "description": "Delete an R2 bucket",
+          "input_schema": {
+            "inputSchema": "string"
+          },
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": true
+          }
+        },
+        {
+          "name": "workers_builds_list_builds",
+          "description": "Use the Workers Builds API to list builds for a Cloudflare Worker. workerId is required. Use workers_list to find a Worker's ID when needed.",
+          "input_schema": {
+            "inputSchema": "string",
+            "workerId": "string",
+            "page": "string",
+            "perPage": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true
+          }
+        },
+        {
+          "name": "workers_builds_get_build",
+          "description": "Get details for a specific build by its UUID. Includes build and deploy commands for the build (useful for debugging build failures).",
+          "input_schema": {
+            "inputSchema": "string",
+            "buildUUID": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true
+          }
+        },
+        {
+          "name": "workers_builds_get_build_logs",
+          "description": "Get logs for a Cloudflare Workers build by its explicit UUID.",
+          "input_schema": {
+            "inputSchema": "string",
+            "buildUUID": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true
+          }
+        },
+        {
+          "name": "workers_list",
+          "description": "List all Workers in your Cloudflare account. If you only need details of a single Worker, use workers_get_worker.",
+          "input_schema": {
+            "inputSchema": "string",
+            "id": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false
+          }
+        },
+        {
+          "name": "workers_get_worker",
+          "description": "Get the details of the Cloudflare Worker.",
+          "input_schema": {
+            "inputSchema": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false
+          }
+        },
+        {
+          "name": "workers_get_worker_code",
+          "description": "Get the source code of a Cloudflare Worker. Note: This may be a bundled version of the worker.",
+          "input_schema": {
+            "inputSchema": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false
+          }
+        },
+        {
+          "name": "zones_list",
+          "description": "List all zones under a Cloudflare account",
+          "input_schema": {
+            "inputSchema": "string",
+            "name": "string",
+            "page": "string",
+            "perPage": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false
+          }
+        },
+        {
+          "name": "zone_details",
+          "description": "Get details for a specific Cloudflare zone",
+          "input_schema": {
+            "inputSchema": "string",
+            "zoneId": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false
+          }
+        }
+      ]
+    }
+  ]
+}

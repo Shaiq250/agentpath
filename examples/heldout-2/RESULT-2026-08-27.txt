@@ -1,0 +1,52 @@
+Recorded 2026-08-27, before any rule or mapping was changed in response to it.
+
+Second held out batch. Corpus: getsentry/sentry-mcp and
+cloudflare/mcp-server-cloudflare, tool definitions extracted from source. Neither
+server had been looked at by this project before this run.
+
+This result is worse than the first batch and the reason matters more than the
+number. See the analysis in the README.
+
+Agreement with server author annotations
+69 annotated tools, classified without reading their annotations.
+
+readOnlyHint vs state-change
+  readOnlyHint false means the tool modifies something, so we expect state-change
+  agreed on 67 of 69 (97%)
+    disagreed: cloudflare/d1_database_query, author said readOnlyHint=false, we said no
+    disagreed: sentry/analyze_issue_with_seer, author said readOnlyHint=false, we said no
+
+openWorldHint vs untrusted-read
+  openWorldHint true means the tool reaches outside, so we expect untrusted-read
+  agreed on 27 of 52 (52%)
+    disagreed: sentry/add_issue_note, author said openWorldHint=true, we said no
+    disagreed: sentry/add_team_to_project, author said openWorldHint=true, we said no
+    disagreed: sentry/create_dsn, author said openWorldHint=true, we said no
+    disagreed: sentry/create_project, author said openWorldHint=true, we said no
+    disagreed: sentry/create_team, author said openWorldHint=true, we said no
+    disagreed: sentry/create_uptime_monitor, author said openWorldHint=true, we said no
+    disagreed: sentry/delete_uptime_monitor, author said openWorldHint=true, we said no
+    disagreed: sentry/find_alert_rules, author said openWorldHint=true, we said no
+    disagreed: sentry/find_dashboards, author said openWorldHint=true, we said no
+    disagreed: sentry/find_monitors, author said openWorldHint=true, we said no
+    disagreed: sentry/find_organizations, author said openWorldHint=true, we said no
+    disagreed: sentry/find_projects, author said openWorldHint=true, we said no
+    disagreed: sentry/find_releases, author said openWorldHint=true, we said no
+    disagreed: sentry/find_teams, author said openWorldHint=true, we said no
+    disagreed: sentry/find_uptime_monitors, author said openWorldHint=true, we said no
+    disagreed: sentry/get_doc, author said openWorldHint=true, we said no
+    disagreed: sentry/get_sentry_resource, author said openWorldHint=true, we said no
+    disagreed: sentry/onboarding_status_update, author said openWorldHint=true, we said no
+    disagreed: sentry/remove_team_from_project, author said openWorldHint=true, we said no
+    disagreed: sentry/search_docs, author said openWorldHint=true, we said no
+    disagreed: sentry/update_dsn, author said openWorldHint=true, we said no
+    disagreed: sentry/update_issue, author said openWorldHint=true, we said no
+    disagreed: sentry/update_project, author said openWorldHint=true, we said no
+    disagreed: sentry/update_uptime_monitor, author said openWorldHint=true, we said no
+    disagreed: sentry/whoami, author said openWorldHint=true, we said no
+
+Overall agreement: 94 of 121 (78%)
+
+Every disagreement above is either a rule that needs work or an annotation
+that does not match its own description. Both are worth looking at, and the
+second is itself a finding worth reporting.
