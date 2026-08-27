@@ -100,3 +100,33 @@ def test_the_verbs_the_measurement_found_are_covered_now():
                                                       description=desc),
                                                  use_annotations=False)}
         assert STATE_CHANGE in labels, f"{name} lost its state-change label again"
+
+
+def test_read_only_false_is_treated_as_a_state_change_declaration():
+    """An author writing readOnlyHint=false is saying the tool changes something.
+
+    destructiveHint only separates destructive changes from additive ones, so
+    acting on it alone discards the plainer statement: creating a project is not
+    destructive and is still a change.
+    """
+    from agentpath.classify import classify_tool
+    from agentpath.labels import STATE_CHANGE
+    from agentpath.model import Tool
+
+    tool = Tool(name="create_team", server="s", description="Create a new team.",
+                annotations={"readOnlyHint": False, "destructiveHint": False})
+    assert STATE_CHANGE in {h.label for h in classify_tool(tool)}
+
+
+def test_the_second_batch_result_is_kept():
+    recorded = Path(__file__).resolve().parents[1] / "examples" / "heldout-2" / "RESULT-2026-08-27.txt"
+    assert recorded.is_file()
+    assert "before any rule or mapping was changed" in recorded.read_text()
+
+
+def test_the_open_world_mapping_stays_retired():
+    """It was retired for a reason. Putting it back needs an argument, not a diff."""
+    script = (Path(__file__).resolve().parents[1] / "scripts"
+              / "measure_annotations.py").read_text()
+    assert "openWorldHint" in script, "the reasoning should stay documented"
+    assert '("openWorldHint", UNTRUSTED_READ' not in script, "the comparison must not return"

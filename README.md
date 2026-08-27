@@ -301,44 +301,55 @@ measures agreement with labels this tool has already seen. Hand labelling by the
 person who wrote the rules only ever proves they are internally consistent.
 
 MCP tool annotations are a way around that. Server authors declare in their own
-source what their tools do. `readOnlyHint` says a tool does not modify its
-environment, `openWorldHint` says it reaches out to external entities. Those
-declarations were written by people who have never heard of this tool.
-
-So the classifier was switched to ignore annotations entirely, made to work out
-what each tool does from its name, description and schema alone, and compared
-against what the authors declared.
+source what their tools do, and those declarations were written by people who
+have never heard of this tool. So the classifier is switched to ignore
+annotations entirely, made to work out what each tool does from its name,
+description and schema alone, and compared against what the authors declared.
 
 ```
-python scripts/measure_annotations.py
+python scripts/measure_annotations.py     # git, memory, fetch, time
+python scripts/measure_annotations_2.py   # sentry, cloudflare
 ```
 
-On 21 annotated tools taken from the git, memory, fetch and time servers in
-`modelcontextprotocol/servers`, extracted from source:
+The comparison is `readOnlyHint` against the state-change label. An author
+setting it to false is stating that the tool modifies something.
 
-| check | agreement |
-| --- | --- |
-| `openWorldHint` against untrusted-read | 21 of 21 |
-| `readOnlyHint` against state-change | 18 of 21 |
-| overall | 39 of 42, 93 percent |
+| batch | servers | tools | agreement |
+| --- | --- | --- | --- |
+| first, after fixing what it found | git, memory, fetch, time | 21 | 21 of 21 |
+| second, untouched since | sentry, cloudflare | 69 | 67 of 69, 97 percent |
 
-The three it got wrong were `git_commit`, `git_reset` and `git_checkout`. Their
-authors declared all three as modifying the repository. Reading only the name and
-description, the classifier said they did not, because those verbs were missing
-from its state-change list.
+The second batch is the one to trust. Nothing was tuned to it, and the two it
+missed are still missed: `d1_database_query`, a SQL tool that can write, and
+`analyze_issue_with_seer`, which reads like analysis and starts a job. Neither is
+decidable from a name and a description, so the rules were left alone rather than
+bent to fit two hard cases.
 
-That run is kept verbatim at `examples/heldout/RESULT-2026-08-27.txt`, dated and
-recorded before any rule was changed in response to it, so the number cannot be
-quietly improved later.
+Both runs are kept verbatim and dated at `examples/heldout/RESULT-2026-08-27.txt`
+and `examples/heldout-2/RESULT-2026-08-27.txt`, recorded before anything was
+changed in response to them.
 
-Those verbs have since been added, and the score is now 42 of 42. **That second
-number is not a measurement.** It is what you get after tuning to the key, so
-this corpus has become a regression guard, in the same way the first one did. The
-93 percent is the honest figure, and the recorded file is there so it stays
-visible next to the perfect one.
+### A mapping that was retired, and why
 
-Getting another independent number means finding servers nobody here has looked
-at yet. That is the cost of measuring properly and it is worth paying.
+This used to compare `openWorldHint` against untrusted-read as well, and scored
+21 of 21 on the first batch. The second batch showed that was luck.
+
+Sentry marks nearly every one of its tools `openWorldHint: true`, correctly,
+because they all call the Sentry API. But `whoami`, `create_team` and
+`find_projects` are not entry points for attacker authored content. The label was
+right and the annotation was answering a different question. `openWorldHint`
+means "talks to something outside this process". Untrusted-read means "brings in
+content someone hostile could have written". One cannot stand in for the other,
+and the earlier perfect score came from a batch of local tools where almost
+nothing set the annotation, so the mapping was never really tested.
+
+It was retired rather than kept, and the earlier claim is corrected here rather
+than quietly deleted. A check that only agrees when it happens not to be tested
+is worse than no check.
+
+That also means untrusted-read, secret-read and egress have never been measured
+against an external answer key. Only state-change has. Worth knowing when reading
+any of these numbers.
 
 ## Known limitations
 

@@ -14,20 +14,31 @@ So: switch the annotations off, work out what each tool does from its name,
 description and schema alone, and see whether that agrees with what its author
 declared.
 
-Two mappings, both taken straight from the MCP specification:
+One mapping, taken straight from the MCP specification:
 
   readOnlyHint true   the tool does not modify its environment,
                       so it should NOT be labelled state-change
   readOnlyHint false  the tool does modify something,
                       so it SHOULD be labelled state-change
-  openWorldHint true  the tool interacts with external entities,
-                      so untrusted-read is expected
-  openWorldHint false it does not, so untrusted-read is not expected
 
-Limits worth stating plainly. This only covers the two labels annotations speak
-to, only for tools whose authors bothered to write them, and an annotation can
-itself be wrong or lazily copied. It is a narrower check than full labelling. It
-is also the only measurement here whose answer key is genuinely external.
+This used to compare openWorldHint against untrusted-read as well, on the
+reasoning that a tool reaching outside is a tool that brings outside content in.
+A second batch of servers showed that mapping does not hold. Sentry marks nearly
+every one of its tools openWorldHint true, correctly, because they all call the
+Sentry API. But whoami, create_team and find_projects are not entry points for
+attacker authored content, so our label was right and the annotation was
+answering a different question. openWorldHint means "talks to something outside
+this process". untrusted-read means "brings in content someone hostile could have
+written". Those are not the same property and one cannot stand in for the other.
+
+The comparison was retired rather than kept, because a check that only agrees
+when it happens not to be tested is worse than no check. Its earlier perfect
+score came from a batch of local tools where almost nothing set the annotation.
+
+Limits worth stating plainly. This covers one label, only for tools whose authors
+bothered to annotate them, and an annotation can itself be wrong or copied
+without thought. It is narrower than full labelling. It is also the only
+measurement here whose answer key is genuinely external.
 """
 
 from __future__ import annotations
@@ -39,7 +50,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from agentpath.classify import classify_tool  # noqa: E402
-from agentpath.labels import STATE_CHANGE, UNTRUSTED_READ  # noqa: E402
+from agentpath.labels import STATE_CHANGE  # noqa: E402
 from agentpath.model import load_manifest  # noqa: E402
 
 CORPUS = Path(__file__).resolve().parents[1] / "examples" / "heldout"
@@ -86,8 +97,6 @@ def main() -> None:
     for key, label, expect_when_true, blurb in [
         ("readOnlyHint", STATE_CHANGE, False,
          "readOnlyHint false means the tool modifies something, so we expect state-change"),
-        ("openWorldHint", UNTRUSTED_READ, True,
-         "openWorldHint true means the tool reaches outside, so we expect untrusted-read"),
     ]:
         agree, disagree = check(rows, key, label, expect_when_true)
         seen = agree + len(disagree)
