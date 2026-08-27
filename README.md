@@ -94,7 +94,8 @@ agentpath confirm examples/demo/vulnerable-agent.json --agent scripted -o conf.j
 agentpath analyze examples/demo/vulnerable-agent.json --confirmations conf.json --format html -o report.html
 ```
 
-Open `report.html` in a browser and the whole picture is in one file. There is a
+Reports come out as Markdown, JSON, HTML or SARIF. Open `report.html` in a
+browser and the whole picture is in one file. There is a
 pre generated copy at `examples/demo/sample-report.html` if you would rather look
 before you install.
 
@@ -148,6 +149,55 @@ confirmed result reports which one walked the path. A confirmation that only
 works with a blunt all caps instruction is a weaker result than one that works
 with an instruction disguised as a routine field, and the report does not let the
 two look alike.
+
+## Running it in CI
+
+There is a GitHub Action and SARIF output, so findings show up in the Security
+tab of a repository rather than only in a log nobody reads.
+
+```yaml
+- uses: Shaiq250/agentpath@main
+  id: scan
+  with:
+    manifest: agent-manifest.json
+    baseline: .agentpath-baseline.json
+    fail-on: high
+
+- uses: github/codeql-action/upload-sarif@v3
+  if: always()
+  with:
+    sarif_file: ${{ steps.scan.outputs.sarif-file }}
+```
+
+The full workflow, including the permissions it needs, is in
+`docs/github-action.md`.
+
+When no manifest is given the action runs `collect --no-launch`, which reads
+configuration without executing anything. A workflow triggered by a pull request
+may be looking at a branch a stranger wrote, and starting the servers it declares
+would mean running that stranger's commands on your runner.
+
+## Adopting it on a repository that already has findings
+
+Nobody fixes forty findings the day they install a scanner, and a tool that
+demands it gets switched off instead. Record what is already there and let CI
+fail only on what gets added:
+
+```
+agentpath analyze manifest.json --write-baseline .agentpath-baseline.json
+agentpath analyze manifest.json --baseline .agentpath-baseline.json
+```
+
+Baselined findings still appear in the report and in SARIF, marked as suppressed
+with a reason. A baseline is a snapshot of what was already there. It is not a
+decision that any of it is acceptable, and the report says so every time it
+prints one, because the failure mode here is a team believing forty findings were
+reviewed when nobody looked at any of them.
+
+If you have reviewed one specific path and decided it is fine, that belongs in
+the accept list in `.agentpath.yml` instead, where it carries a reason and a
+date. The two are kept apart on purpose so a bulk snapshot never reads like a set
+of considered decisions.
 
 ## Correcting it: .agentpath.yml
 

@@ -20,6 +20,7 @@ import sys
 from pathlib import Path
 
 from .agents import AgentUnavailable, ModelAgent, ScriptedAgent
+from .baseline import BaselineError, apply_baseline, build_baseline, load_baseline
 from .classify import classify_agent
 from .confirm import apply_confirmations, confirm_all
 from .collect import collect as run_collect
@@ -85,7 +86,8 @@ def build_parser() -> argparse.ArgumentParser:
     analyze = sub.add_parser("analyze", help="analyse an agent manifest, offline")
     analyze.add_argument("manifest", help="path to an agent manifest JSON file")
     analyze.add_argument("-o", "--out", help="write the report to a file instead of stdout")
-    analyze.add_argument("--format", choices=("md", "json", "html"), default="md")
+    analyze.add_argument("--format", choices=("md", "json", "html", "sarif"),
+                         default="md")
     analyze.add_argument(
         "--fail-on",
         choices=SEVERITIES,
@@ -103,6 +105,16 @@ def build_parser() -> argparse.ArgumentParser:
     analyze.add_argument(
         "--confirmations",
         help="a confirmations.json from `agentpath confirm`, to fold into the report",
+    )
+    analyze.add_argument(
+        "--baseline",
+        help="a baseline file of findings that already existed; they are reported but "
+             "do not fail the build",
+    )
+    analyze.add_argument(
+        "--write-baseline",
+        metavar="PATH",
+        help="write the current findings to a baseline file and exit 0",
     )
     analyze.add_argument(
         "--allow-incomplete",
@@ -297,6 +309,27 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     apply_policy(agent, policy)
     findings = run_analysis(agent, policy)
 
+    baseline = None
+    if args.baseline:
+        try:
+            baseline = load_baseline(args.baseline)
+        except BaselineError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+    marked = apply_baseline(findings, baseline)
+    if marked:
+        print(f"{marked} findings are in the baseline and will not fail this run",
+              file=sys.stderr)
+
+    if args.write_baseline:
+        snapshot = build_baseline(findings)
+        Path(args.write_baseline).write_text(
+            json.dumps(snapshot.to_dict(), indent=2), encoding="utf-8")
+        print(f"wrote {len(snapshot.entries)} findings to {args.write_baseline}. "
+              f"These will no longer fail a build. They are still real findings.",
+              file=sys.stderr)
+        return 0
+
     if args.confirmations:
         try:
             payload = json.loads(Path(args.confirmations).read_text(encoding="utf-8"))
@@ -310,6 +343,9 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     elif args.format == "html":
         from .report_html import to_html
         text = to_html(agent, findings)
+    elif args.format == "sarif":
+        from .sarif import to_sarif
+        text = to_sarif(agent, findings)
     else:
         text = to_markdown(agent, findings)
 
@@ -325,7 +361,7 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     triggered = any(
         at_least(finding.severity, args.fail_on)
         for finding in findings
-        if not finding.suppressed
+        if finding.counts_against_you
     )
     # An incomplete scan also exits non zero. In CI, a scan that quietly covered
     # half the servers should not pass as green.

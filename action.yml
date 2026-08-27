@@ -1,0 +1,89 @@
+name: agentpath
+description: Find attack paths in the tools an AI agent can call, and report them to code scanning.
+author: Shaiq
+branding:
+  icon: git-branch
+  color: purple
+
+inputs:
+  manifest:
+    description: >
+      Path to an agent manifest to analyse. If omitted, the action runs
+      `agentpath collect --no-launch` first, which reads any agent configuration
+      committed to the repository without executing anything.
+    required: false
+    default: ""
+  policy:
+    description: Path to an .agentpath.yml file. Defaults to one in the working directory.
+    required: false
+    default: ""
+  baseline:
+    description: >
+      Path to a baseline file. Findings in it are still reported but do not fail
+      the run, so a repository can adopt the tool without fixing everything first.
+    required: false
+    default: ""
+  fail-on:
+    description: Fail the step when a finding at this severity or above is not baselined.
+    required: false
+    default: high
+  sarif-file:
+    description: Where to write SARIF output for upload to code scanning.
+    required: false
+    default: agentpath.sarif
+  python-version:
+    description: Python version to run on.
+    required: false
+    default: "3.12"
+
+outputs:
+  sarif-file:
+    description: Path to the SARIF file that was written.
+    value: ${{ steps.run.outputs.sarif-file }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install agentpath
+      shell: bash
+      run: pip install --quiet agentpath || pip install --quiet "git+https://github.com/Shaiq250/agentpath.git"
+
+    - name: Analyse
+      id: run
+      shell: bash
+      env:
+        MANIFEST: ${{ inputs.manifest }}
+        POLICY: ${{ inputs.policy }}
+        BASELINE: ${{ inputs.baseline }}
+        FAIL_ON: ${{ inputs.fail-on }}
+        SARIF: ${{ inputs.sarif-file }}
+      run: |
+        set -euo pipefail
+
+        manifest="$MANIFEST"
+        if [ -z "$manifest" ]; then
+          # No manifest given, so read whatever configuration is committed here.
+          # --no-launch means nothing from the repository is ever executed, which
+          # matters when the workflow can be triggered by a pull request.
+          agentpath collect --no-launch -o agentpath-manifest.json
+          manifest=agentpath-manifest.json
+        fi
+
+        args=(analyze "$manifest" --format sarif -o "$SARIF" --fail-on "$FAIL_ON")
+        [ -n "$POLICY" ] && args+=(--policy "$POLICY")
+        [ -n "$BASELINE" ] && args+=(--baseline "$BASELINE")
+
+        echo "sarif-file=$SARIF" >> "$GITHUB_OUTPUT"
+
+        # Also print a readable report into the job log, since SARIF is for
+        # machines and whoever opens the log wants prose.
+        readable=(analyze "$manifest")
+        [ -n "$POLICY" ] && readable+=(--policy "$POLICY")
+        [ -n "$BASELINE" ] && readable+=(--baseline "$BASELINE")
+        agentpath "${readable[@]}" || true
+
+        agentpath "${args[@]}"

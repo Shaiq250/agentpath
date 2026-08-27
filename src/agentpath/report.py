@@ -129,6 +129,30 @@ def _confirmation_summary(findings: list[Finding]) -> list[str]:
     return lines
 
 
+def _baselined_block(findings: list[Finding]) -> list[str]:
+    """Known findings, shown but not counted against the build.
+
+    Deliberately worded so nobody mistakes a baseline for approval. A baseline
+    is a snapshot, not a decision, and it says nothing about whether these are
+    acceptable.
+    """
+    known = [f for f in findings if f.baselined]
+    if not known:
+        return []
+    noun = "finding is" if len(known) == 1 else "findings are"
+    lines = ["", "## Already in the baseline", "",
+             f"{len(known)} {noun} recorded in the baseline, so they do not fail the build. "
+             f"They are still real findings. A baseline is a snapshot of what was already "
+             f"there, not a decision that any of it is acceptable.", ""]
+    for finding in known:
+        lines.append(
+            f"- `{finding.source.server}/{finding.source.tool}` -> "
+            f"`{finding.sink.server}/{finding.sink.tool}` ({finding.severity}): {finding.name}"
+        )
+    lines.append("")
+    return lines
+
+
 def _suppressed_block(findings: list[Finding]) -> list[str]:
     """Accepted paths, kept visible with the reason someone signed off on."""
     accepted = [f for f in findings if f.suppressed]
@@ -152,6 +176,7 @@ def _suppressed_block(findings: list[Finding]) -> list[str]:
 def to_markdown(agent: Agent, findings: list[Finding]) -> str:
     all_findings = findings
     accepted_count = sum(1 for f in findings if f.suppressed)
+    baselined_count = sum(1 for f in findings if f.baselined)
     findings = active(findings)
     lines: list[str] = []
     lines.append(f"# Attack paths in agent `{agent.name}`")
@@ -163,6 +188,8 @@ def to_markdown(agent: Agent, findings: list[Finding]) -> str:
     server_count = len(agent.servers)
     tool_count = sum(1 for _ in agent.tools())
     suffix = f" Accepted by policy: {accepted_count}." if accepted_count else ""
+    if baselined_count:
+        suffix += f" In the baseline: {baselined_count}."
     lines.append(f"Servers: {server_count}. Tools: {tool_count}. "
                  f"Findings: {len(findings)}.{suffix}")
     lines.append("")
@@ -171,7 +198,15 @@ def to_markdown(agent: Agent, findings: list[Finding]) -> str:
     if not findings:
         # The empty result is the one place this tool could do real harm, by
         # letting a scan that saw nothing read as a scan that found nothing.
-        if agent.complete and accepted_count:
+        if agent.complete and baselined_count and not accepted_count:
+            lines.append("No new attack paths.")
+            lines.append("")
+            lines.append(
+                f"Everything found is already in the baseline: {baselined_count} "
+                f"{'path' if baselined_count == 1 else 'paths'}, listed below. That is not "
+                "the same as nothing being found."
+            )
+        elif agent.complete and accepted_count:
             lines.append("No outstanding attack paths.")
             lines.append("")
             lines.append(
@@ -196,6 +231,7 @@ def to_markdown(agent: Agent, findings: list[Finding]) -> str:
                 "servers. Re-run the collection so the remaining servers are included before "
                 "drawing any conclusion."
             )
+        lines.extend(_baselined_block(all_findings))
         lines.extend(_suppressed_block(all_findings))
         lines.append("")
         return "\n".join(lines)
@@ -237,6 +273,7 @@ def to_markdown(agent: Agent, findings: list[Finding]) -> str:
                          f"Confidence: {finding.evidence['confidence']}.")
             lines.append("")
 
+    lines.extend(_baselined_block(all_findings))
     lines.extend(_suppressed_block(all_findings))
     return "\n".join(lines)
 
@@ -254,6 +291,7 @@ def to_json(agent: Agent, findings: list[Finding]) -> str:
             "tools": sum(1 for _ in agent.tools()),
             "findings": len(active(findings)),
             "accepted": sum(1 for f in findings if f.suppressed),
+            "baselined": sum(1 for f in findings if f.baselined),
         },
         "confirmation": {
             "tested": sum(1 for f in findings if f.confirmation),

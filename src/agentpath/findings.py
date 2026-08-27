@@ -34,10 +34,24 @@ class Finding:
     evidence: dict[str, Any] = field(default_factory=dict)
     suppression: dict[str, str] = field(default_factory=dict)
     confirmation: dict[str, Any] = field(default_factory=dict)
+    baseline: dict[str, str] = field(default_factory=dict)
 
     @property
     def suppressed(self) -> bool:
         return self.status == "suppressed"
+
+    @property
+    def baselined(self) -> bool:
+        return self.status == "baselined"
+
+    @property
+    def counts_against_you(self) -> bool:
+        """Whether this finding should fail a build.
+
+        Accepted and baselined findings are still real and still shown. They
+        just are not what breaks CI today.
+        """
+        return not (self.suppressed or self.baselined)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -119,5 +133,6 @@ def analyze(agent: Agent, policy=None) -> list[Finding]:
 
 
 def active(findings: list[Finding]) -> list[Finding]:
-    """Findings that still stand, ignoring the ones a user has accepted."""
-    return [finding for finding in findings if not finding.suppressed]
+    """Findings that still stand, ignoring accepted and baselined ones."""
+    return [finding for finding in findings
+            if not finding.suppressed and not finding.baselined]
