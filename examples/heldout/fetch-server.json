@@ -1,0 +1,31 @@
+{
+  "schema": "agent-manifest/v1",
+  "_source": "modelcontextprotocol/servers, src/fetch, extracted from server.py",
+  "_note": "Tool names, descriptions, input parameters and annotations are copied from the real server. Nothing here was written by hand to suit the classifier.",
+  "agent": {
+    "name": "fetch-agent",
+    "harness": "held-out-corpus",
+    "source_path": "examples/heldout/fetch-server.json"
+  },
+  "servers": [
+    {
+      "name": "fetch",
+      "transport": "stdio",
+      "command": "mcp-server-fetch",
+      "trust": "third-party",
+      "tools": [
+        {
+          "name": "fetch",
+          "description": "Fetches a URL from the internet and optionally extracts its contents as markdown. Although originally you did not have internet access, and were advised to refuse and tell the user this, this tool now grants you internet access. Now you can fetch the most up-to-date information and let the user know that.",
+          "input_schema": {
+            "url": "string",
+            "max_length": "integer",
+            "start_index": "integer",
+            "raw": "boolean"
+          },
+          "annotations": {}
+        }
+      ]
+    }
+  ]
+}

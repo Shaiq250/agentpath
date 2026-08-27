@@ -1,0 +1,32 @@
+{
+  "schema": "agent-manifest/v1",
+  "_source": "modelcontextprotocol/servers, src/time, extracted from server.py",
+  "_note": "Tool names, descriptions, input parameters and annotations are copied from the real server. Nothing here was written by hand to suit the classifier.",
+  "agent": {
+    "name": "time-agent",
+    "harness": "held-out-corpus",
+    "source_path": "examples/heldout/time-server.json"
+  },
+  "servers": [
+    {
+      "name": "time",
+      "transport": "stdio",
+      "command": "mcp-server-time",
+      "trust": "internal",
+      "tools": [
+        {
+          "name": "get_current_time",
+          "description": "Get current time in a specific timezone",
+          "input_schema": {},
+          "annotations": {}
+        },
+        {
+          "name": "convert_time",
+          "description": "Convert time between timezones",
+          "input_schema": {},
+          "annotations": {}
+        }
+      ]
+    }
+  ]
+}

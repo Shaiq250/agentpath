@@ -1,0 +1,185 @@
+{
+  "schema": "agent-manifest/v1",
+  "_source": "modelcontextprotocol/servers, src/memory, extracted from index.ts",
+  "_note": "Tool names, descriptions, input parameters and annotations are copied from the real server. Nothing here was written by hand to suit the classifier.",
+  "agent": {
+    "name": "memory-agent",
+    "harness": "held-out-corpus",
+    "source_path": "examples/heldout/memory-server.json"
+  },
+  "servers": [
+    {
+      "name": "memory",
+      "transport": "stdio",
+      "command": "mcp-server-memory",
+      "trust": "internal",
+      "tools": [
+        {
+          "name": "create_entities",
+          "description": "Create multiple new entities in the knowledge graph",
+          "input_schema": {
+            "entities": "string",
+            "readOnlyHint": "string",
+            "destructiveHint": "string",
+            "idempotentHint": "string",
+            "openWorldHint": "string"
+          },
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": false,
+            "idempotentHint": false,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "create_relations",
+          "description": "Create multiple new relations between entities in the knowledge graph. Relations should be in active voice",
+          "input_schema": {
+            "relations": "string",
+            "readOnlyHint": "string",
+            "destructiveHint": "string",
+            "idempotentHint": "string",
+            "openWorldHint": "string"
+          },
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": false,
+            "idempotentHint": false,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "add_observations",
+          "description": "Add new observations to existing entities in the knowledge graph",
+          "input_schema": {
+            "observations": "string",
+            "results": "string",
+            "readOnlyHint": "string",
+            "destructiveHint": "string",
+            "idempotentHint": "string",
+            "openWorldHint": "string"
+          },
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": false,
+            "idempotentHint": false,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "delete_entities",
+          "description": "Delete multiple entities and their associated relations from the knowledge graph",
+          "input_schema": {
+            "entityNames": "string",
+            "success": "string",
+            "message": "string",
+            "readOnlyHint": "string",
+            "destructiveHint": "string",
+            "idempotentHint": "string",
+            "openWorldHint": "string"
+          },
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "idempotentHint": true,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "delete_observations",
+          "description": "Delete specific observations from entities in the knowledge graph",
+          "input_schema": {
+            "deletions": "string",
+            "success": "string",
+            "message": "string",
+            "readOnlyHint": "string",
+            "destructiveHint": "string",
+            "idempotentHint": "string",
+            "openWorldHint": "string"
+          },
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "idempotentHint": true,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "delete_relations",
+          "description": "Delete multiple relations from the knowledge graph",
+          "input_schema": {
+            "relations": "string",
+            "success": "string",
+            "message": "string",
+            "readOnlyHint": "string",
+            "destructiveHint": "string",
+            "idempotentHint": "string",
+            "openWorldHint": "string"
+          },
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "idempotentHint": true,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "read_graph",
+          "description": "Read the entire knowledge graph",
+          "input_schema": {
+            "entities": "string",
+            "relations": "string",
+            "readOnlyHint": "string",
+            "destructiveHint": "string",
+            "idempotentHint": "string",
+            "openWorldHint": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "idempotentHint": true,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "search_nodes",
+          "description": "Search for nodes in the knowledge graph based on a query",
+          "input_schema": {
+            "query": "string",
+            "entities": "string",
+            "relations": "string",
+            "readOnlyHint": "string",
+            "destructiveHint": "string",
+            "idempotentHint": "string",
+            "openWorldHint": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "idempotentHint": true,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "open_nodes",
+          "description": "Open specific nodes in the knowledge graph by their names",
+          "input_schema": {
+            "names": "string",
+            "entities": "string",
+            "relations": "string",
+            "readOnlyHint": "string",
+            "destructiveHint": "string",
+            "idempotentHint": "string",
+            "openWorldHint": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "idempotentHint": true,
+            "openWorldHint": false
+          }
+        }
+      ]
+    }
+  ]
+}

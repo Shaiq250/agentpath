@@ -1,0 +1,192 @@
+{
+  "schema": "agent-manifest/v1",
+  "_source": "modelcontextprotocol/servers, src/git, extracted from server.py",
+  "_note": "Tool names, descriptions, input parameters and annotations are copied from the real server. Nothing here was written by hand to suit the classifier.",
+  "agent": {
+    "name": "git-agent",
+    "harness": "held-out-corpus",
+    "source_path": "examples/heldout/git-server.json"
+  },
+  "servers": [
+    {
+      "name": "git",
+      "transport": "stdio",
+      "command": "mcp-server-git",
+      "trust": "privileged",
+      "tools": [
+        {
+          "name": "git_status",
+          "description": "Shows the working tree status",
+          "input_schema": {
+            "repo_path": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "idempotentHint": true,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "git_diff_unstaged",
+          "description": "Shows changes in the working directory that are not yet staged",
+          "input_schema": {
+            "repo_path": "string",
+            "context_lines": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "idempotentHint": true,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "git_diff_staged",
+          "description": "Shows changes that are staged for commit",
+          "input_schema": {
+            "repo_path": "string",
+            "context_lines": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "idempotentHint": true,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "git_diff",
+          "description": "Shows differences between branches or commits",
+          "input_schema": {
+            "repo_path": "string",
+            "target": "string",
+            "context_lines": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "idempotentHint": true,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "git_commit",
+          "description": "Records changes to the repository",
+          "input_schema": {
+            "repo_path": "string",
+            "message": "string"
+          },
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": false,
+            "idempotentHint": false,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "git_add",
+          "description": "Adds file contents to the staging area",
+          "input_schema": {
+            "repo_path": "string",
+            "files": "string"
+          },
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": false,
+            "idempotentHint": true,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "git_reset",
+          "description": "Unstages all staged changes",
+          "input_schema": {
+            "repo_path": "string"
+          },
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "idempotentHint": true,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "git_log",
+          "description": "Shows the commit logs",
+          "input_schema": {
+            "repo_path": "string",
+            "max_count": "string",
+            "start_timestamp": "string",
+            "end_timestamp": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "idempotentHint": true,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "git_create_branch",
+          "description": "Creates a new branch from an optional base branch",
+          "input_schema": {
+            "repo_path": "string",
+            "branch_name": "string",
+            "base_branch": "string"
+          },
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": false,
+            "idempotentHint": false,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "git_checkout",
+          "description": "Switches branches",
+          "input_schema": {
+            "repo_path": "string",
+            "branch_name": "string"
+          },
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": false,
+            "idempotentHint": false,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "git_show",
+          "description": "Shows the contents of a commit",
+          "input_schema": {
+            "repo_path": "string",
+            "revision": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "idempotentHint": true,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "git_branch",
+          "description": "List Git branches",
+          "input_schema": {
+            "repo_path": "string",
+            "branch_type": "string",
+            "contains": "string",
+            "not_contains": "string"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "idempotentHint": true,
+            "openWorldHint": false
+          }
+        }
+      ]
+    }
+  ]
+}

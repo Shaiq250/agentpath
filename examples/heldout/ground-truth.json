@@ -1,0 +1,31 @@
+{
+  "_instructions": "FILL THIS IN BEFORE RUNNING THE MEASUREMENT. For each tool below, replace null with a list of the capability labels you think it carries. An empty list is a valid and common answer. The five labels are: untrusted-read (brings in content an attacker could influence), secret-read (reads data that is sensitive if it leaves), egress (can move data outside the trust boundary), state-change (mutates something that matters), code-exec (runs code or commands). Add a line to _debatable for any call you found genuinely arguable, explaining your reasoning, so a reader can disagree with a specific decision rather than with the number.",
+  "_rule": "Do not run scripts/measure_heldout.py until every entry below is filled in, and do not change any classification rule between filling this in and reading the result. The whole value of this corpus is that it was labelled before the tool was measured against it. Once you have looked at the result, this batch is spent and a future measurement needs different servers.",
+  "_debatable": {},
+  "tools": {
+    "fetch/fetch": null,
+    "git/git_status": null,
+    "git/git_diff_unstaged": null,
+    "git/git_diff_staged": null,
+    "git/git_diff": null,
+    "git/git_commit": null,
+    "git/git_add": null,
+    "git/git_reset": null,
+    "git/git_log": null,
+    "git/git_create_branch": null,
+    "git/git_checkout": null,
+    "git/git_show": null,
+    "git/git_branch": null,
+    "memory/create_entities": null,
+    "memory/create_relations": null,
+    "memory/add_observations": null,
+    "memory/delete_entities": null,
+    "memory/delete_observations": null,
+    "memory/delete_relations": null,
+    "memory/read_graph": null,
+    "memory/search_nodes": null,
+    "memory/open_nodes": null,
+    "time/get_current_time": null,
+    "time/convert_time": null
+  }
+}

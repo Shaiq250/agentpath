@@ -1,0 +1,29 @@
+Recorded 2026-08-27, before any rule was changed in response to it.
+
+Kept in the repository so the number cannot be quietly improved later. The
+classifier scored this while blind to the annotations it was being measured
+against, so the answer key came from the server authors rather than from anyone
+working on this tool.
+
+Corpus: git, memory, fetch and time servers from modelcontextprotocol/servers,
+with tool definitions extracted from source.
+
+Agreement with server author annotations
+21 annotated tools, classified without reading their annotations.
+
+readOnlyHint vs state-change
+  readOnlyHint false means the tool modifies something, so we expect state-change
+  agreed on 18 of 21 (86%)
+    disagreed: git/git_commit, author said readOnlyHint=false, we said no
+    disagreed: git/git_reset, author said readOnlyHint=false, we said no
+    disagreed: git/git_checkout, author said readOnlyHint=false, we said no
+
+openWorldHint vs untrusted-read
+  openWorldHint true means the tool reaches outside, so we expect untrusted-read
+  agreed on 21 of 21 (100%)
+
+Overall agreement: 39 of 42 (93%)
+
+Every disagreement above is either a rule that needs work or an annotation
+that does not match its own description. Both are worth looking at, and the
+second is itself a finding worth reporting.

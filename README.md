@@ -250,7 +250,57 @@ labels move is printed by name, so a fix in one place cannot quietly break
 another. The honest way to turn this into a real accuracy number is to add fresh
 servers, label them first, and measure without touching the rules afterwards.
 
+## Measured against someone else's answer key
+
+The number above has a problem: the rules were tuned to that corpus, so it
+measures agreement with labels this tool has already seen. Hand labelling by the
+person who wrote the rules only ever proves they are internally consistent.
+
+MCP tool annotations are a way around that. Server authors declare in their own
+source what their tools do. `readOnlyHint` says a tool does not modify its
+environment, `openWorldHint` says it reaches out to external entities. Those
+declarations were written by people who have never heard of this tool.
+
+So the classifier was switched to ignore annotations entirely, made to work out
+what each tool does from its name, description and schema alone, and compared
+against what the authors declared.
+
+```
+python scripts/measure_annotations.py
+```
+
+On 21 annotated tools taken from the git, memory, fetch and time servers in
+`modelcontextprotocol/servers`, extracted from source:
+
+| check | agreement |
+| --- | --- |
+| `openWorldHint` against untrusted-read | 21 of 21 |
+| `readOnlyHint` against state-change | 18 of 21 |
+| overall | 39 of 42, 93 percent |
+
+The three it got wrong were `git_commit`, `git_reset` and `git_checkout`. Their
+authors declared all three as modifying the repository. Reading only the name and
+description, the classifier said they did not, because those verbs were missing
+from its state-change list.
+
+That run is kept verbatim at `examples/heldout/RESULT-2026-08-27.txt`, dated and
+recorded before any rule was changed in response to it, so the number cannot be
+quietly improved later.
+
+Those verbs have since been added, and the score is now 42 of 42. **That second
+number is not a measurement.** It is what you get after tuning to the key, so
+this corpus has become a regression guard, in the same way the first one did. The
+93 percent is the honest figure, and the recorded file is there so it stays
+visible next to the perfect one.
+
+Getting another independent number means finding servers nobody here has looked
+at yet. That is the cost of measuring properly and it is worth paying.
+
 ## Known limitations
+
+Accuracy numbers age. Both measurements above are dated and tied to a specific
+set of servers, and a corpus stops being a measurement the moment its results are
+used to change the rules.
 
 Findings without a confirmation are candidates. A candidate means the combination
 makes the path possible, not that any model has been observed walking it.
