@@ -35,6 +35,8 @@ class Finding:
     suppression: dict[str, str] = field(default_factory=dict)
     confirmation: dict[str, Any] = field(default_factory=dict)
     baseline: dict[str, str] = field(default_factory=dict)
+    # Other server pairings that produce the same path, collapsed into this one.
+    also_matches: list[str] = field(default_factory=list)
 
     @property
     def suppressed(self) -> bool:
@@ -122,14 +124,61 @@ def analyze(agent: Agent, policy=None) -> list[Finding]:
                     "policy": policy.source_path,
                 }
 
+    findings = _collapse_shadowed(list(best.values()), agent)
     findings = sorted(
-        best.values(),
+        findings,
         key=lambda f: (-severity_rank(f.severity), f.source.server, f.source.tool,
                        f.sink.server, f.sink.tool),
     )
     for index, finding in enumerate(findings, start=1):
         finding.id = f"APA-{index:04d}"
     return findings
+
+
+def _collapse_shadowed(findings: list[Finding], agent: Agent) -> list[Finding]:
+    """Report one path once, even when shadowed tools offer several routes to it.
+
+    When two servers both offer read_file and both offer send_report, the naive
+    result is four findings describing one situation. That is the cross product
+    problem arriving through a side door: shadowing multiplies findings.
+
+    So paths that differ only in which server provides an identically named tool
+    are folded into a single finding. The one kept is the most alarming, and the
+    others are listed on it, because which server actually answers the call is
+    the shadowing issue's business and is reported there.
+    """
+    shadowed = {
+        name for name in {tool.name for tool in agent.tools()}
+        if len({tool.server for tool in agent.tools() if tool.name == name}) > 1
+    }
+    if not shadowed:
+        return findings
+
+    groups: dict[tuple[str, str, str], list[Finding]] = {}
+    for finding in findings:
+        if finding.source.tool in shadowed or finding.sink.tool in shadowed:
+            groups.setdefault(
+                (finding.rule, finding.source.tool, finding.sink.tool), []).append(finding)
+
+    collapsed: list[Finding] = []
+    dropped: set[int] = set()
+    for group in groups.values():
+        if len(group) < 2:
+            continue
+        # Keep the worst: a path that crosses a trust boundary is the one a
+        # reader needs to see, since that is where shadowing actually hurts.
+        keep = max(group, key=lambda f: (severity_rank(f.severity),
+                                         f.crosses_trust_boundary))
+        keep.also_matches = sorted(
+            f"{f.source.server}/{f.source.tool} to {f.sink.server}/{f.sink.tool}"
+            for f in group if f is not keep
+        )
+        collapsed.append(keep)
+        for finding in group:
+            if finding is not keep:
+                dropped.add(id(finding))
+
+    return [f for f in findings if id(f) not in dropped]
 
 
 def active(findings: list[Finding]) -> list[Finding]:

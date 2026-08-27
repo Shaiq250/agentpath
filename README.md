@@ -224,6 +224,14 @@ without anyone approving the change.
 All three appear under "Between servers" in the report, with their own APX ids,
 and in SARIF as their own rules.
 
+Shadowing also has a quieter effect on the path findings themselves. If two
+servers both offer `read_file` and both offer `send_report`, the naive result is
+four findings describing one situation. Paths that differ only in which server
+provides an identically named tool are folded into one, the version that crosses
+a trust boundary is the one kept, and the others are listed on it. Which server
+actually answers the call is the shadowing issue's business and is reported
+there.
+
 ### The first scan cannot detect drift
 
 There is nothing to compare a server against until it has been seen once. A first

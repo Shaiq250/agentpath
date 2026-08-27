@@ -289,6 +289,13 @@ def to_markdown(agent: Agent, findings: list[Finding], issues: list[Issue] | Non
             lines.append(f"`{finding.source.server}/{finding.source.tool}` "
                          f"-> agent -> `{finding.sink.server}/{finding.sink.tool}`")
             lines.append("")
+            if finding.also_matches:
+                others = "; ".join(finding.also_matches)
+                lines.append(f"The same path also exists as: {others}. These are the same "
+                             f"risk reached through shadowed tool names, so they are "
+                             f"reported once here. Which server actually answers the call "
+                             f"is covered under Between servers.")
+                lines.append("")
             lines.extend(_confirmation_lines(finding))
             if finding.crosses_trust_boundary:
                 lines.append(f"This path crosses a trust boundary: the source sits in the "
