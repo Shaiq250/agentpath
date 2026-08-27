@@ -69,7 +69,7 @@ def _external_noun(tool: Tool) -> str | None:
 NAME_PATTERNS: list[tuple[str, str, float]] = [
     (SECRET_READ, r"\b(secret|credential|token|password|key|env|config|record)\b", 0.7),
     (EGRESS, r"\b(send|post|publish|upload|share|notify|email|webhook|export)\b", 0.7),
-    (STATE_CHANGE, r"\b(create|update|delete|remove|write|merge|refund|transfer|approve|close|assign|cancel|move|rename|add|insert|post|upload|publish|send|share|click|fill|submit|comment|react)\b", 0.7),
+    (STATE_CHANGE, r"\b(create|update|delete|remove|write|merge|refund|transfer|approve|close|assign|cancel|move|rename|add|insert|post|upload|publish|send|share|click|fill|submit|comment|react|commit|reset|checkout|revert|restore|stage|apply|install|deploy|rollback)\b", 0.7),
     (CODE_EXEC, r"\b(exec|eval|shell|bash|subprocess|terminal)\b", 0.8),
     (CODE_EXEC, r"\b(run|execute|invoke)[ _](shell|bash|command|script|code|python|node|program)\b", 0.9),
 ]
@@ -102,10 +102,10 @@ def _add(hits: list[LabelHit], label: str, confidence: float, reason: str) -> No
     hits.append(LabelHit(label=label, confidence=confidence, reason=reason))
 
 
-def _untrusted_read_hits(tool: Tool) -> list[LabelHit]:
+def _untrusted_read_hits(tool: Tool, use_annotations: bool = True) -> list[LabelHit]:
     hits: list[LabelHit] = []
 
-    if tool.annotations.get("openWorldHint") is True:
+    if use_annotations and tool.annotations.get("openWorldHint") is True:
         _add(hits, UNTRUSTED_READ, 0.8, "annotation openWorldHint=true")
 
     words = tool.name.lower().replace("_", " ").replace("-", " ")
@@ -122,13 +122,23 @@ def _untrusted_read_hits(tool: Tool) -> list[LabelHit]:
     return hits
 
 
-def classify_tool(tool: Tool) -> list[LabelHit]:
-    """Return the labels for one tool. Pure function, no I/O."""
-    hits: list[LabelHit] = list(_untrusted_read_hits(tool))
+def classify_tool(tool: Tool, use_annotations: bool = True) -> list[LabelHit]:
+    """Return the labels for one tool. Pure function, no I/O.
+
+    use_annotations=False ignores everything the server author declared and
+    reasons only from the name, the description and the schema. That is not a
+    mode anyone should scan with, since throwing away a real signal makes the
+    results worse. It exists so the rules can be checked against the
+    annotations as an independent answer key: if the classifier can work out
+    what a tool does without being told, and its conclusion matches what the
+    server author declared, that agreement means something. Leaving the
+    annotations switched on would just be checking that we can read them.
+    """
+    hits: list[LabelHit] = list(_untrusted_read_hits(tool, use_annotations))
     words = tool.name.lower().replace("-", " ").replace("_", " ")
     description = (tool.description or "").lower()
 
-    if tool.annotations.get("destructiveHint") is True:
+    if use_annotations and tool.annotations.get("destructiveHint") is True:
         _add(hits, STATE_CHANGE, 0.9, "annotation destructiveHint=true")
 
     for label, params, confidence in SCHEMA_PARAMS:
@@ -156,6 +166,8 @@ def classify_tool(tool: Tool) -> list[LabelHit]:
                 _add(hits, label, confidence, f"description mentions {keyword!r}")
                 break
 
+    if not use_annotations:
+        return _dedupe(hits)
     return _resolve_conflicts(tool, _dedupe(hits))
 
 
@@ -201,8 +213,8 @@ def _resolve_conflicts(tool: Tool, hits: list[LabelHit]) -> list[LabelHit]:
     return out
 
 
-def classify_agent(agent: Agent) -> Agent:
+def classify_agent(agent: Agent, use_annotations: bool = True) -> Agent:
     """Label every tool on the agent in place, then return it."""
     for tool in agent.tools():
-        tool.labels = classify_tool(tool)
+        tool.labels = classify_tool(tool, use_annotations)
     return agent
