@@ -199,6 +199,42 @@ the accept list in `.agentpath.yml` instead, where it carries a reason and a
 date. The two are kept apart on purpose so a bulk snapshot never reads like a set
 of considered decisions.
 
+## Problems between servers
+
+Some things only go wrong when several servers share one agent, and no amount of
+looking at a single tool will show them.
+
+**Shadowing.** Two servers offering a tool with the same name. Which one the
+agent calls depends on its client's resolution order, so it may not be the one
+you meant. When the two servers are not equally trusted this is an attack rather
+than an inconvenience: a third party server can end up standing in for a
+privileged one.
+
+**Confusable names.** Names that differ only by case, punctuation or a trailing
+version number. Nobody has necessarily done anything wrong, but a person
+approving one call out of several can reasonably mistake `sendReport2` for
+`send_report`.
+
+**Drift.** A tool that is not the tool it was last time you looked. This is the
+rug pull: a server behaves while you evaluate it, then rewrites a description
+afterwards. `collect` records a fingerprint of every tool definition it sees, so
+the next scan can tell you what moved, including tools that appeared or vanished
+without anyone approving the change.
+
+All three appear under "Between servers" in the report, with their own APX ids,
+and in SARIF as their own rules.
+
+### The first scan cannot detect drift
+
+There is nothing to compare a server against until it has been seen once. A first
+scan therefore reports no drift for the same reason an unplugged smoke alarm
+reports no fire, so the report says which servers were seen for the first time
+and that no conclusion about them is possible yet.
+
+That is also why the tool re-reads every server on every run rather than reusing
+what it cached. The record of what a server offered is there to catch it
+changing, not to save a few seconds.
+
 ## Correcting it: .agentpath.yml
 
 The classifier guesses labels from names, descriptions and annotations, so it

@@ -23,6 +23,7 @@ from .agents import AgentUnavailable, ModelAgent, ScriptedAgent
 from .baseline import BaselineError, apply_baseline, build_baseline, load_baseline
 from .classify import classify_agent
 from .confirm import apply_confirmations, confirm_all
+from .crossserver import find_issues
 from .collect import collect as run_collect
 from .discovery import ServerSpec, config_locations, discover
 from .findings import analyze as run_analysis
@@ -338,16 +339,18 @@ def cmd_analyze(args: argparse.Namespace) -> int:
             return 2
         apply_confirmations(findings, payload.get("results", []))
 
+    issues = find_issues(agent)
+
     if args.format == "json":
-        text = to_json(agent, findings)
+        text = to_json(agent, findings, issues)
     elif args.format == "html":
         from .report_html import to_html
         text = to_html(agent, findings)
     elif args.format == "sarif":
         from .sarif import to_sarif
-        text = to_sarif(agent, findings)
+        text = to_sarif(agent, findings, issues=issues)
     else:
-        text = to_markdown(agent, findings)
+        text = to_markdown(agent, findings, issues)
 
     if args.out:
         Path(args.out).write_text(text, encoding="utf-8")
@@ -362,7 +365,7 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         at_least(finding.severity, args.fail_on)
         for finding in findings
         if finding.counts_against_you
-    )
+    ) or any(at_least(issue.severity, args.fail_on) for issue in issues)
     # An incomplete scan also exits non zero. In CI, a scan that quietly covered
     # half the servers should not pass as green.
     incomplete = not agent.complete and not args.allow_incomplete

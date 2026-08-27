@@ -67,5 +67,5 @@ def test_an_incomplete_scan_is_reported_in_the_run(support_agent):
     from agentpath.model import EnumerationStatus, FAILED
     support_agent.servers[0].status = EnumerationStatus(FAILED, "boom")
     doc = parse(support_agent, analyze(support_agent))
-    note = doc["runs"][0]["invocations"][0]["toolExecutionNotifications"][0]
-    assert "Scan incomplete" in note["message"]["text"]
+    notes = doc["runs"][0]["invocations"][0]["toolExecutionNotifications"]
+    assert any("Scan incomplete" in n["message"]["text"] for n in notes)

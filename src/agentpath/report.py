@@ -6,6 +6,7 @@ import json
 from typing import Any
 
 from .findings import Finding, active
+from .crossserver import Issue, no_baseline_servers
 from .model import Agent
 
 SEVERITY_ORDER = ("critical", "high", "medium", "low")
@@ -173,7 +174,37 @@ def _suppressed_block(findings: list[Finding]) -> list[str]:
     return lines
 
 
-def to_markdown(agent: Agent, findings: list[Finding]) -> str:
+def _issues_block(agent: Agent, issues: list[Issue]) -> list[str]:
+    """Cross server problems, plus an honest note when drift could not be checked."""
+    lines: list[str] = []
+    fresh = no_baseline_servers(agent)
+
+    if issues:
+        lines += ["", "## Between servers", "",
+                  f"{len(issues)} {'issue' if len(issues) == 1 else 'issues'} that come from "
+                  f"how these servers sit together rather than from any single tool.", ""]
+        for issue in issues:
+            lines.append(f"### {issue.id}: {issue.title}")
+            lines.append("")
+            lines.append(f"Severity: {issue.severity}. Tools: "
+                         + ", ".join(f"`{t}`" for t in issue.tools))
+            lines.append("")
+            lines.append(issue.detail)
+            lines.append("")
+            lines.append(f"**Fix.** {issue.fix}")
+            lines.append("")
+
+    if fresh:
+        lines += ["", "### Drift was not checked for every server", "",
+                  f"{len(fresh)} of {len(agent.servers)} servers were seen for the first "
+                  f"time in this scan: {', '.join(f'`{n}`' for n in sorted(fresh))}. There "
+                  f"is nothing to compare them against yet, so no conclusion about whether "
+                  f"their tools have changed is possible. Drift checking applies to them "
+                  f"from the next scan onward.", ""]
+    return lines
+
+
+def to_markdown(agent: Agent, findings: list[Finding], issues: list[Issue] | None = None) -> str:
     all_findings = findings
     accepted_count = sum(1 for f in findings if f.suppressed)
     baselined_count = sum(1 for f in findings if f.baselined)
@@ -233,6 +264,7 @@ def to_markdown(agent: Agent, findings: list[Finding]) -> str:
             )
         lines.extend(_baselined_block(all_findings))
         lines.extend(_suppressed_block(all_findings))
+        lines.extend(_issues_block(agent, issues or []))
         lines.append("")
         return "\n".join(lines)
 
@@ -275,10 +307,11 @@ def to_markdown(agent: Agent, findings: list[Finding]) -> str:
 
     lines.extend(_baselined_block(all_findings))
     lines.extend(_suppressed_block(all_findings))
+    lines.extend(_issues_block(agent, issues or []))
     return "\n".join(lines)
 
 
-def to_json(agent: Agent, findings: list[Finding]) -> str:
+def to_json(agent: Agent, findings: list[Finding], issues: list[Issue] | None = None) -> str:
     payload: dict[str, Any] = {
         "schema": "agentpath-report/v1",
         "agent": {
@@ -312,6 +345,8 @@ def to_json(agent: Agent, findings: list[Finding]) -> str:
             for server in agent.unenumerated()
         ],
         "note": DISCLAIMER,
+        "cross_server_issues": [issue.to_dict() for issue in (issues or [])],
+        "drift_not_checked": sorted(no_baseline_servers(agent)),
         "findings": [finding.to_dict() for finding in findings],
     }
     return json.dumps(payload, indent=2)

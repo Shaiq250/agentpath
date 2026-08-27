@@ -90,6 +90,10 @@ class Server:
     trust: str = "unknown"
     tools: list[Tool] = field(default_factory=list)
     status: EnumerationStatus = field(default_factory=EnumerationStatus)
+    # What changed about this server since the last scan, recorded at collection
+    # time because that is the only moment both versions are available.
+    drift: list[dict[str, Any]] = field(default_factory=list)
+    seen_before: bool = False
 
 
 @dataclass
@@ -176,6 +180,8 @@ def parse_manifest(raw: dict[str, Any], source: str = "<memory>") -> Agent:
                 state=status_entry.get("state", ENUMERATED),
                 reason=status_entry.get("reason", ""),
             ),
+            drift=entry.get("drift", []) or [],
+            seen_before=bool(entry.get("seen_before", False)),
         )
         seen: set[str] = set()
         for tool_entry in entry.get("tools", []):
@@ -223,6 +229,8 @@ def manifest_to_dict(agent: Agent, collection: dict[str, Any] | None = None) -> 
                 "command": server.command,
                 "trust": server.trust,
                 "status": server.status.to_dict(),
+                "drift": server.drift,
+                "seen_before": server.seen_before,
                 "tools": [
                     {
                         "name": tool.name,

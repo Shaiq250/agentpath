@@ -65,9 +65,13 @@ def tool_fingerprint(tool: Tool) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
 
 
-def _cache_key(spec: ServerSpec) -> str:
-    material = f"{spec.name}\x00{spec.transport}\x00{spec.command_line}"
+def cache_key(name: str, transport: str, command_line: str) -> str:
+    material = f"{name}\x00{transport}\x00{command_line}"
     return hashlib.sha256(material.encode("utf-8")).hexdigest()[:24]
+
+
+def _cache_key(spec: ServerSpec) -> str:
+    return cache_key(spec.name, spec.transport, spec.command_line)
 
 
 def load_cache(path: Path | None = None) -> dict:
@@ -154,13 +158,7 @@ def collect(
             continue
 
         key = _cache_key(spec)
-        cached = cache["servers"].get(key) if use_cache else None
-        if cached:
-            server.tools = _to_tools(spec.name, [RawTool(**entry) for entry in cached["tools"]])
-            server.status = EnumerationStatus(ENUMERATED)
-            _emit(on_event, "cached", spec, f"{len(server.tools)} tools")
-            servers.append(server)
-            continue
+        previous = cache["servers"].get(key) if use_cache else None
 
         _emit(on_event, "launching", spec, spec.command_line)
         try:
@@ -173,6 +171,17 @@ def collect(
 
         server.tools = _to_tools(spec.name, raw_tools)
         server.status = EnumerationStatus(ENUMERATED)
+
+        # Compare against what this server offered last time. A server that
+        # quietly rewrites a tool after you approved it is the rug pull pattern,
+        # and the only way to see it is to have written down what it said before.
+        server.seen_before = bool(previous)
+        if previous:
+            server.drift = compare_to_previous(previous, server.tools)
+            if server.drift:
+                _emit(on_event, "drift", spec,
+                      f"{len(server.drift)} tool definitions changed since the last scan")
+
         cache["servers"][key] = {
             "name": spec.name,
             "command": spec.command_line,
@@ -211,6 +220,40 @@ def collect(
         "unenumerated": [server.name for server in agent.unenumerated()],
     }
     return CollectionResult(agent=agent, collection=collection)
+
+
+def compare_to_previous(previous: dict, tools: list[Tool]) -> list[dict]:
+    """What changed about this server's tools since we last looked.
+
+    Three kinds of change, and all three are worth reporting. A changed
+    definition is the rug pull: the tool you approved is not the tool you have
+    now. A new tool is capability that appeared without anyone approving it. A
+    removed tool is less alarming but still a change to what the agent can do.
+    """
+    was = previous.get("fingerprints", {}) or {}
+    now = {tool.name: tool_fingerprint(tool) for tool in tools}
+    old_descriptions = {t["name"]: t.get("description", "")
+                        for t in previous.get("tools", []) or []}
+    by_name = {tool.name: tool for tool in tools}
+
+    changes: list[dict] = []
+    for name, digest in now.items():
+        if name not in was:
+            changes.append({"tool": name, "change": "added",
+                            "detail": "this tool was not offered at the last scan"})
+        elif was[name] != digest:
+            before = old_descriptions.get(name, "")
+            after = by_name[name].description
+            detail = "the definition changed since the last scan"
+            if before and after and before != after:
+                detail = (f"the description changed. Was: {before[:120]!r}. "
+                          f"Now: {after[:120]!r}")
+            changes.append({"tool": name, "change": "modified", "detail": detail})
+    for name in was:
+        if name not in now:
+            changes.append({"tool": name, "change": "removed",
+                            "detail": "this tool was offered at the last scan and is gone"})
+    return changes
 
 
 def _emit(on_event, event: str, spec: ServerSpec, detail: str) -> None:

@@ -19,7 +19,7 @@ import json
 from typing import Any
 
 from .findings import Finding
-from .fingerprint import fingerprint_of
+from .fingerprint import fingerprint, fingerprint_of
 from .model import Agent
 from .rules import all_rules
 
@@ -35,7 +35,20 @@ LEVELS = {"critical": "error", "high": "error", "medium": "warning", "low": "not
 
 
 def _driver_rules() -> list[dict[str, Any]]:
-    descriptors = []
+    descriptors = [
+        {"id": kind, "name": kind,
+         "shortDescription": {"text": title},
+         "defaultConfiguration": {"level": level},
+         "properties": {"tags": ["security", "ai-agent", "cross-server"]}}
+        for kind, title, level in [
+            ("tool_shadowing", "Two servers offer a tool with the same name", "error"),
+            ("confusable_tool_names", "Tool names are easy to confuse", "note"),
+            ("tool_definition_changed", "A tool definition changed since the last scan",
+             "error"),
+            ("tool_added_since_last_scan", "A server added a tool", "warning"),
+            ("tool_removed_since_last_scan", "A server removed a tool", "note"),
+        ]
+    ]
     for rule in all_rules():
         descriptors.append({
             "id": rule.id,
@@ -86,7 +99,8 @@ def _suppression(finding: Finding) -> list[dict[str, Any]] | None:
     return None
 
 
-def to_sarif(agent: Agent, findings: list[Finding], version: str = "0.1.0") -> str:
+def to_sarif(agent: Agent, findings: list[Finding], version: str = "0.1.0",
+             issues=None) -> str:
     from . import __version__
 
     location = agent.source_path or "agent-manifest.json"
@@ -116,7 +130,33 @@ def to_sarif(agent: Agent, findings: list[Finding], version: str = "0.1.0") -> s
             result["suppressions"] = suppression
         results.append(result)
 
+    for issue in (issues or []):
+        results.append({
+            "ruleId": issue.kind,
+            "level": LEVELS.get(issue.severity, "warning"),
+            "message": {"text": f"{issue.detail} Fix: {issue.fix}"},
+            "partialFingerprints": {
+                "agentpathIssue/v1": fingerprint(issue.kind, ",".join(issue.tools), "")
+            },
+            "locations": [{"physicalLocation": {
+                "artifactLocation": {"uri": location},
+                "region": {"startLine": 1},
+            }}],
+            "properties": {"severity": issue.severity, "tools": issue.tools,
+                           "crossServer": True},
+        })
+
     notifications = []
+    from .crossserver import no_baseline_servers
+    fresh = no_baseline_servers(agent)
+    if fresh:
+        notifications.append({
+            "level": "note",
+            "message": {"text": (f"Drift was not checked for {', '.join(sorted(fresh))}: "
+                                 f"these servers were seen for the first time, so there is "
+                                 f"nothing to compare against yet.")},
+        })
+
     if not agent.complete:
         missing = ", ".join(server.name for server in agent.unenumerated())
         notifications.append({
