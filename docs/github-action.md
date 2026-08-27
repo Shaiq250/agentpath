@@ -59,6 +59,14 @@ accept list in `.agentpath.yml` instead, where it carries a reason and a date.
 The two are kept separate on purpose so a bulk snapshot never looks like a set of
 considered decisions.
 
+## When there is no agent configuration
+
+If no manifest is given and the repository has no agent configuration, the action
+says so and exits successfully. It does not fail the build, because a repository
+without an agent has nothing wrong with it, and it does not report a pass either.
+The message and the uploaded SARIF both state that nothing was scanned, which is
+a different thing from scanning and finding nothing.
+
 ## Note on pull requests
 
 When no manifest is given, the action runs `agentpath collect --no-launch`, which

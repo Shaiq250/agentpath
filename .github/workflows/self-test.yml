@@ -1,0 +1,57 @@
+name: action self test
+
+# Runs agentpath's own GitHub Action against the deliberately vulnerable demo
+# agent in this repository. The point is to prove the action actually works
+# rather than merely being plausible looking YAML, and to put real findings in
+# this repository's Security tab where anyone can look at them.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  scan-the-demo-agent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan the demo agent
+        id: scan
+        # The demo agent is vulnerable on purpose, so this step is expected to
+        # find things and exit non zero. Letting that fail the job would mean a
+        # permanently red badge that hides real breakage, so the failure is
+        # recorded and the workflow carries on to the upload.
+        continue-on-error: true
+        uses: ./
+        with:
+          manifest: examples/demo/vulnerable-agent.json
+          fail-on: critical
+
+      - name: Upload results to code scanning
+        # always() matters: without it a run that fails because it found
+        # something never uploads the findings that caused the failure.
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ steps.scan.outputs.sarif-file }}
+          category: agentpath-demo
+
+      - name: Confirm the scan found what it should
+        run: |
+          set -euo pipefail
+          test -f agentpath.sarif
+          python - <<'PY'
+          import json
+          doc = json.load(open("agentpath.sarif"))
+          results = doc["runs"][0]["results"]
+          assert results, "the demo agent should produce findings"
+          errors = [r for r in results if r["level"] == "error"]
+          assert errors, "the demo agent should produce at least one error level finding"
+          print(f"{len(results)} findings, {len(errors)} at error level")
+          PY

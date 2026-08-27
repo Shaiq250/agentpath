@@ -50,7 +50,9 @@ runs:
 
     - name: Install agentpath
       shell: bash
-      run: pip install --quiet agentpath || pip install --quiet "git+https://github.com/Shaiq250/agentpath.git"
+      # Install the copy of agentpath that ships with this action, so the code
+      # and the action version can never drift apart.
+      run: pip install --quiet "$GITHUB_ACTION_PATH"
 
     - name: Analyse
       id: run
@@ -69,21 +71,37 @@ runs:
           # No manifest given, so read whatever configuration is committed here.
           # --no-launch means nothing from the repository is ever executed, which
           # matters when the workflow can be triggered by a pull request.
-          agentpath collect --no-launch -o agentpath-manifest.json
-          manifest=agentpath-manifest.json
+          if agentpath collect --no-launch -o agentpath-manifest.json; then
+            manifest=agentpath-manifest.json
+          else
+            # A repository with no agent configuration is not a failure, and it
+            # is not a pass either. Say which one it is rather than letting an
+            # empty result read as a clean one.
+            echo "::notice::agentpath found no agent configuration in this repository."
+            echo "Nothing was scanned. This is not the same as scanning and finding nothing."
+            echo "Point the action at a manifest with the 'manifest' input if your agent"
+            echo "configuration lives somewhere this does not look."
+            cat > "$SARIF" <<'EMPTY'
+        {"$schema":"https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json","version":"2.1.0","runs":[{"tool":{"driver":{"name":"agentpath","informationUri":"https://github.com/Shaiq250/agentpath","rules":[]}},"results":[],"invocations":[{"executionSuccessful":true,"toolExecutionNotifications":[{"level":"note","message":{"text":"No agent configuration was found in this repository, so nothing was scanned."}}]}]}]}
+        EMPTY
+            echo "sarif-file=$SARIF" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
         fi
 
-        args=(analyze "$manifest" --format sarif -o "$SARIF" --fail-on "$FAIL_ON")
-        [ -n "$POLICY" ] && args+=(--policy "$POLICY")
-        [ -n "$BASELINE" ] && args+=(--baseline "$BASELINE")
+        # Written as if blocks rather than `[ -n "$X" ] && args+=(...)`, because
+        # under `set -e` that form aborts the whole step whenever the input is
+        # empty: the and list returns the exit status of a failed test.
+        extra=()
+        if [ -n "$POLICY" ]; then extra+=(--policy "$POLICY"); fi
+        if [ -n "$BASELINE" ]; then extra+=(--baseline "$BASELINE"); fi
 
         echo "sarif-file=$SARIF" >> "$GITHUB_OUTPUT"
 
-        # Also print a readable report into the job log, since SARIF is for
-        # machines and whoever opens the log wants prose.
-        readable=(analyze "$manifest")
-        [ -n "$POLICY" ] && readable+=(--policy "$POLICY")
-        [ -n "$BASELINE" ] && readable+=(--baseline "$BASELINE")
-        agentpath "${readable[@]}" || true
+        # A readable report in the job log as well, since SARIF is for machines
+        # and whoever opens the log wants prose. This one is allowed to fail,
+        # because findings make it exit non zero and that is not an error here.
+        agentpath analyze "$manifest" "${extra[@]+"${extra[@]}"}" || true
 
-        agentpath "${args[@]}"
+        agentpath analyze "$manifest" --format sarif -o "$SARIF" \
+          --fail-on "$FAIL_ON" "${extra[@]+"${extra[@]}"}"
