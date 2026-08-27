@@ -141,6 +141,12 @@ def classify_tool(tool: Tool, use_annotations: bool = True) -> list[LabelHit]:
 
     if use_annotations and tool.annotations.get("destructiveHint") is True:
         _add(hits, STATE_CHANGE, 0.9, "annotation destructiveHint=true")
+    elif use_annotations and tool.annotations.get("readOnlyHint") is False:
+        # An author writing readOnlyHint=false is stating that the tool changes
+        # something. destructiveHint only distinguishes destructive changes from
+        # additive ones, so relying on it alone throws this away: a tool that
+        # creates a project is not destructive and still changes state.
+        _add(hits, STATE_CHANGE, 0.8, "annotation readOnlyHint=false")
 
     for label, params, confidence in SCHEMA_PARAMS:
         for param in tool.input_schema:
