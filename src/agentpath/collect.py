@@ -141,6 +141,7 @@ def collect(
         )
 
         if not launch:
+            server.literal_secrets = literal_secret_names(spec.env)
             server.status = EnumerationStatus(
                 SKIPPED, "no-launch mode: the server was not started, so its tools are unknown"
             )
@@ -175,6 +176,7 @@ def collect(
         # Compare against what this server offered last time. A server that
         # quietly rewrites a tool after you approved it is the rug pull pattern,
         # and the only way to see it is to have written down what it said before.
+        server.literal_secrets = literal_secret_names(spec.env)
         server.seen_before = bool(previous)
         if previous:
             server.drift = compare_to_previous(previous, server.tools)
@@ -220,6 +222,26 @@ def collect(
         "unenumerated": [server.name for server in agent.unenumerated()],
     }
     return CollectionResult(agent=agent, collection=collection)
+
+
+def literal_secret_names(env: dict[str, str]) -> list[str]:
+    """Env vars that look like credentials and hold a literal, not a reference.
+
+    Returns names only. The value is exactly what should not be copied around,
+    and a security tool that echoes a token into its own output has made the
+    problem worse rather than reported it.
+    """
+    from .toolaudit import REFERENCE, SECRET_NAME
+
+    names = []
+    for name, value in (env or {}).items():
+        if not SECRET_NAME.search(name):
+            continue
+        text = str(value).strip()
+        if not text or REFERENCE.match(text):
+            continue
+        names.append(name)
+    return sorted(names)
 
 
 def compare_to_previous(previous: dict, tools: list[Tool]) -> list[dict]:

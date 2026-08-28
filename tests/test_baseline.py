@@ -49,11 +49,14 @@ def test_a_new_finding_is_not_baselined(support_agent, coding_agent):
 
 
 def test_baselined_findings_do_not_fail_the_build(tmp_path):
+    # --fail-on high keeps this about the baseline. These fixtures also carry a
+    # medium supply chain issue, which is a true finding and not what is being
+    # measured here.
     manifest = str(EXAMPLES / "support-agent.json")
     path = tmp_path / "bl.json"
     assert main(["analyze", manifest, "--write-baseline", str(path)]) == 0
-    assert main(["analyze", manifest]) == 1
-    assert main(["analyze", manifest, "--baseline", str(path)]) == 0
+    assert main(["analyze", manifest, "--fail-on", "high"]) == 1
+    assert main(["analyze", manifest, "--baseline", str(path), "--fail-on", "high"]) == 0
 
 
 def test_the_report_says_a_baseline_is_not_approval(support_agent):

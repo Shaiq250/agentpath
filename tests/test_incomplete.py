@@ -19,7 +19,7 @@ def build(state="failed", reason="server exited before replying"):
         "schema": "agent-manifest/v2",
         "agent": {"name": "partial"},
         "servers": [
-            {"name": "unknown-server", "command": "npx thing",
+            {"name": "unknown-server", "command": "npx thing@1.0.0",
              "status": {"state": state, "reason": reason}, "tools": []},
         ],
     })

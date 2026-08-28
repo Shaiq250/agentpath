@@ -6,7 +6,7 @@ import json
 from typing import Any
 
 from .findings import Finding, active
-from .crossserver import Issue, no_baseline_servers
+from .crossserver import Issue, no_baseline_servers, open_issues
 from .model import Agent
 
 SEVERITY_ORDER = ("critical", "high", "medium", "low")
@@ -178,6 +178,8 @@ def _issues_block(agent: Agent, issues: list[Issue]) -> list[str]:
     """Cross server problems, plus an honest note when drift could not be checked."""
     lines: list[str] = []
     fresh = no_baseline_servers(agent)
+    accepted = [i for i in issues if i.suppressed]
+    issues = open_issues(issues)
 
     if issues:
         lines += ["", "## Between servers", "",
@@ -193,6 +195,15 @@ def _issues_block(agent: Agent, issues: list[Issue]) -> list[str]:
             lines.append("")
             lines.append(f"**Fix.** {issue.fix}")
             lines.append("")
+
+    if accepted:
+        lines += ["", "### Accepted between servers", "",
+                  f"{len(accepted)} of these are suppressed by policy:", ""]
+        for issue in accepted:
+            reason = issue.suppression.get("reason", "no reason recorded")
+            lines.append(f"- {issue.title} ({', '.join(issue.subjects()) or 'server level'}): "
+                         f"{reason}")
+        lines.append("")
 
     if fresh:
         lines += ["", "### Drift was not checked for every server", "",

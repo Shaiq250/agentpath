@@ -199,6 +199,41 @@ the accept list in `.agentpath.yml` instead, where it carries a reason and a
 date. The two are kept apart on purpose so a bulk snapshot never reads like a set
 of considered decisions.
 
+## Which attack classes it covers
+
+`docs/coverage.md` has a table of the publicly documented MCP attack classes and
+what agentpath does about each one, including the ones it cannot see and why.
+Tool poisoning, concealed payloads, rug pulls, shadowing, unpinned servers and
+credentials in configs are detected. Confused deputy, typosquatting and server
+side implementation bugs are not, because nothing in a tool manifest reveals
+them.
+
+The rules that read tool descriptions are checked in both directions.
+
+For false positives, against 123 tool definitions from nine real servers. A test
+fails if any of them produces a single finding on that set, because a rule that
+fires on ordinary tools covers a class and helps nobody.
+
+For recall, against deliberately vulnerable servers published by other people:
+Invariant Labs' original tool poisoning and shadowing demonstrations, and the
+Damn Vulnerable MCP challenge servers. **80 percent caught, with no false
+positives on the 26 benign tools alongside them**, recorded before the rules were
+changed in response. The one miss was a `<HIDDEN>` instruction block, which the
+pattern did not know about because it listed three tag words rather than
+describing what a pseudo tag is. That is now generalised, so the corpus has
+become a regression guard and the 80 percent is the standing figure.
+
+```
+python scripts/measure_recall.py
+```
+
+Worth reading `examples/recall/ground-truth.json` for how the labelling went. It
+took four attempts, the number moved between 40 and 80 percent purely on
+labelling choices, and every one of the four disagreements between the detector
+and a label turned out to be the label's fault. On a corpus this small the
+labelling decision matters more than the detector does, and all four wrong
+attempts are written down rather than tidied away.
+
 ## Problems between servers
 
 Some things only go wrong when several servers share one agent, and no amount of

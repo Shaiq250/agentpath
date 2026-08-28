@@ -339,7 +339,7 @@ def cmd_analyze(args: argparse.Namespace) -> int:
             return 2
         apply_confirmations(findings, payload.get("results", []))
 
-    issues = find_issues(agent)
+    issues = find_issues(agent, policy)
 
     if args.format == "json":
         text = to_json(agent, findings, issues)
@@ -365,7 +365,8 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         at_least(finding.severity, args.fail_on)
         for finding in findings
         if finding.counts_against_you
-    ) or any(at_least(issue.severity, args.fail_on) for issue in issues)
+    ) or any(at_least(issue.severity, args.fail_on)
+             for issue in issues if not issue.suppressed)
     # An incomplete scan also exits non zero. In CI, a scan that quietly covered
     # half the servers should not pass as green.
     incomplete = not agent.complete and not args.allow_incomplete

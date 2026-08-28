@@ -47,6 +47,16 @@ def _driver_rules() -> list[dict[str, Any]]:
              "error"),
             ("tool_added_since_last_scan", "A server added a tool", "warning"),
             ("tool_removed_since_last_scan", "A server removed a tool", "note"),
+            ("tool_description_injection",
+             "A tool description contains instructions aimed at the model", "error"),
+            ("concealed_text_in_description",
+             "A tool description contains characters that do not render", "error"),
+            ("unpinned_server_package",
+             "A server is started from an unpinned package", "warning"),
+            ("insecure_remote_transport",
+             "A remote server is reached over plain http", "error"),
+            ("credential_in_server_config",
+             "A credential appears to be written into the agent config", "error"),
         ]
     ]
     for rule in all_rules():
@@ -131,7 +141,7 @@ def to_sarif(agent: Agent, findings: list[Finding], version: str = "0.1.0",
         results.append(result)
 
     for issue in (issues or []):
-        results.append({
+        entry = {
             "ruleId": issue.kind,
             "level": LEVELS.get(issue.severity, "warning"),
             "message": {"text": f"{issue.detail} Fix: {issue.fix}"},
@@ -144,7 +154,13 @@ def to_sarif(agent: Agent, findings: list[Finding], version: str = "0.1.0",
             }}],
             "properties": {"severity": issue.severity, "tools": issue.tools,
                            "crossServer": True},
-        })
+        }
+        if issue.suppressed:
+            entry["suppressions"] = [{
+                "kind": "external",
+                "justification": issue.suppression.get("reason", "accepted by policy"),
+            }]
+        results.append(entry)
 
     notifications = []
     from .crossserver import no_baseline_servers

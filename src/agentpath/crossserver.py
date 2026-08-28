@@ -45,6 +45,19 @@ class Issue:
     fix: str
     tools: list[str] = field(default_factory=list)
     evidence: dict[str, Any] = field(default_factory=dict)
+    status: str = "open"
+    suppression: dict[str, str] = field(default_factory=dict)
+
+    @property
+    def suppressed(self) -> bool:
+        return self.status == "suppressed"
+
+    def subjects(self) -> list[str]:
+        """What an accept rule can name: the tools, or the server if tool free."""
+        if self.tools:
+            return list(self.tools)
+        server = self.evidence.get("server")
+        return [str(server)] if server else []
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -201,9 +214,31 @@ def no_baseline_servers(agent: Agent) -> list[str]:
             if server.status.known and not server.seen_before]
 
 
-def find_issues(agent: Agent) -> list[Issue]:
-    issues = find_shadowing(agent) + find_confusable(agent) + find_drift(agent)
+def find_issues(agent: Agent, policy=None) -> list[Issue]:
+    from .toolaudit import find_tool_issues
+
+    issues = (find_shadowing(agent) + find_confusable(agent) + find_drift(agent)
+              + find_tool_issues(agent))
     issues.sort(key=lambda i: (-severity_rank(i.severity), i.kind, i.tools))
     for index, issue in enumerate(issues, start=1):
         issue.id = f"APX-{index:04d}"
+
+    # These are as acceptable as any path finding. A team that has decided to
+    # live with an unpinned internal server needs to record that once rather
+    # than read it on every run, and suppressing it without saying so would be
+    # the invisible suppression problem again.
+    if policy is not None:
+        for issue in issues:
+            subjects = issue.subjects() or [""]
+            acceptance = next(
+                (a for subject in subjects
+                 if (a := policy.acceptance_for(issue.kind, subject, subject))),
+                None)
+            if acceptance:
+                issue.status = "suppressed"
+                issue.suppression = {"reason": acceptance.reason, "date": acceptance.date}
     return issues
+
+
+def open_issues(issues: list[Issue]) -> list[Issue]:
+    return [issue for issue in issues if not issue.suppressed]
