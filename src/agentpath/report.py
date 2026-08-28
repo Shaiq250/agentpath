@@ -179,6 +179,7 @@ def _issues_block(agent: Agent, issues: list[Issue]) -> list[str]:
     lines: list[str] = []
     fresh = no_baseline_servers(agent)
     accepted = [i for i in issues if i.suppressed]
+    baselined_issues = [i for i in issues if i.baselined]
     issues = open_issues(issues)
 
     if issues:
@@ -203,6 +204,15 @@ def _issues_block(agent: Agent, issues: list[Issue]) -> list[str]:
             reason = issue.suppression.get("reason", "no reason recorded")
             lines.append(f"- {issue.title} ({', '.join(issue.subjects()) or 'server level'}): "
                          f"{reason}")
+        lines.append("")
+
+    if baselined_issues:
+        lines += ["", "### Already in the baseline", "",
+                  f"{len(baselined_issues)} of these were recorded in the baseline. They "
+                  f"are still real, they just do not fail the build.", ""]
+        for issue in baselined_issues:
+            lines.append(f"- {issue.title} "
+                         f"({', '.join(issue.subjects()) or 'server level'})")
         lines.append("")
 
     if fresh:

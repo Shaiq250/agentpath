@@ -88,3 +88,48 @@ def test_a_malformed_baseline_is_an_error(tmp_path):
     path.write_text("{}")
     with pytest.raises(BaselineError):
         load_baseline(path)
+
+
+def test_issues_can_be_baselined_like_findings(tmp_path):
+    """Adopting the tool on a repo with unpinned servers should not force you
+    into the accept list, which is for decisions rather than snapshots."""
+    from agentpath.baseline import apply_baseline, build_baseline
+    from agentpath.classify import classify_agent
+    from agentpath.crossserver import find_issues, open_issues
+    from agentpath.model import load_manifest
+
+    def fresh():
+        agent = classify_agent(load_manifest(EXAMPLES / "poisoned-agent.json"))
+        return agent, find_issues(agent)
+
+    agent, issues = fresh()
+    baseline = build_baseline([], issues)
+    assert len(baseline.entries) == len(issues)
+
+    agent, again = fresh()
+    assert apply_baseline([], baseline, again) == len(again)
+    assert open_issues(again) == []
+    assert all(i.baselined and not i.suppressed for i in again)
+
+
+def test_a_new_issue_is_not_baselined():
+    from agentpath.baseline import apply_baseline, build_baseline
+    from agentpath.classify import classify_agent
+    from agentpath.crossserver import find_issues
+    from agentpath.model import load_manifest
+
+    poisoned = classify_agent(load_manifest(EXAMPLES / "poisoned-agent.json"))
+    shadowed = classify_agent(load_manifest(EXAMPLES / "shadowed-agent.json"))
+    baseline = build_baseline([], find_issues(poisoned))
+
+    other = find_issues(shadowed)
+    apply_baseline([], baseline, other)
+    assert any(i.counts_against_you for i in other)
+
+
+def test_a_baselined_issue_does_not_fail_the_build(tmp_path):
+    manifest = str(EXAMPLES / "poisoned-agent.json")
+    path = tmp_path / "bl.json"
+    assert main(["analyze", manifest, "--write-baseline", str(path)]) == 0
+    assert main(["analyze", manifest, "--fail-on", "high"]) == 1
+    assert main(["analyze", manifest, "--baseline", str(path), "--fail-on", "high"]) == 0

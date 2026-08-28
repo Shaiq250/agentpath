@@ -64,12 +64,17 @@ irreversibly, and `openWorldHint: true` says it reaches outside. They are treate
 as the author's declaration, which raises confidence when they indicate danger,
 and are never trusted on their own to clear a tool as safe.
 
+`prompts` and `resources` are the other two things a server exposes. Both carry
+descriptions that reach the model, so both are checked for poisoning alongside
+tools. They do not take part in path analysis, which is about what an agent can
+be made to do rather than what it reads.
+
 `drift`, `seen_before` and `literal_secrets` are written by `collect` and can be
 omitted. They exist so a later scan can say what changed since an earlier one.
 
 ## v1 and v2
 
-A `agent-manifest/v1` document is still accepted. It has no `status` or
+An `agent-manifest/v1` document is still accepted. It has no `status` or
 `collection` block, and a manifest without a status is treated as complete,
 because a hand written file lists what it lists. v2 exists so a collection that
 partly failed can say so.

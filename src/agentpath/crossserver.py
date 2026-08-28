@@ -52,6 +52,14 @@ class Issue:
     def suppressed(self) -> bool:
         return self.status == "suppressed"
 
+    @property
+    def baselined(self) -> bool:
+        return self.status == "baselined"
+
+    @property
+    def counts_against_you(self) -> bool:
+        return self.status == "open"
+
     def subjects(self) -> list[str]:
         """What an accept rule can name: the tools, or the server if tool free."""
         if self.tools:
@@ -241,4 +249,4 @@ def find_issues(agent: Agent, policy=None) -> list[Issue]:
 
 
 def open_issues(issues: list[Issue]) -> list[Issue]:
-    return [issue for issue in issues if not issue.suppressed]
+    return [issue for issue in issues if issue.status == "open"]

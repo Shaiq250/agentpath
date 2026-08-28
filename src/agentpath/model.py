@@ -97,6 +97,11 @@ class Server:
     # Names only, never values. The value is the thing being warned about, so
     # copying it into a manifest would repeat the mistake being reported.
     literal_secrets: list[str] = field(default_factory=list)
+    # A server exposes more than tools. Prompts and resources are also loaded
+    # into the model's context, and text that steers a model does not care which
+    # of the three it arrived in.
+    prompts: list[dict[str, Any]] = field(default_factory=list)
+    resources: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -186,6 +191,8 @@ def parse_manifest(raw: dict[str, Any], source: str = "<memory>") -> Agent:
             drift=entry.get("drift", []) or [],
             seen_before=bool(entry.get("seen_before", False)),
             literal_secrets=entry.get("literal_secrets", []) or [],
+            prompts=entry.get("prompts", []) or [],
+            resources=entry.get("resources", []) or [],
         )
         seen: set[str] = set()
         for tool_entry in entry.get("tools", []):
@@ -236,6 +243,8 @@ def manifest_to_dict(agent: Agent, collection: dict[str, Any] | None = None) -> 
                 "drift": server.drift,
                 "seen_before": server.seen_before,
                 "literal_secrets": server.literal_secrets,
+                "prompts": server.prompts,
+                "resources": server.resources,
                 "tools": [
                     {
                         "name": tool.name,

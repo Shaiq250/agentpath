@@ -215,6 +215,9 @@ agentpath analyze manifest.json --write-baseline .agentpath-baseline.json
 agentpath analyze manifest.json --baseline .agentpath-baseline.json
 ```
 
+Both attack paths and the issues between servers can be baselined, so a
+repository with three unpinned servers can record that once instead of being
+pushed into the accept list, which is for decisions rather than snapshots.
 Baselined findings still appear in the report and in SARIF, marked as suppressed
 with a reason. A baseline is a snapshot of what was already there. It is not a
 decision that any of it is acceptable, and the report says so every time it
@@ -231,7 +234,9 @@ of considered decisions.
 `docs/coverage.md` has a table of the publicly documented MCP attack classes and
 what agentpath does about each one, including the ones it cannot see and why.
 Tool poisoning, concealed payloads, rug pulls, shadowing, unpinned servers and
-credentials in configs are detected. Confused deputy, typosquatting and server
+credentials in configs are detected. Poisoning is checked in prompts and
+resources as well as tools, because all three are loaded into the same context
+and text that steers a model does not care which one it arrived in. Confused deputy, typosquatting and server
 side implementation bugs are not, because nothing in a tool manifest reveals
 them.
 

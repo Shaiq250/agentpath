@@ -56,8 +56,21 @@ def load_baseline(path: str | Path) -> Baseline:
     return Baseline(entries=raw.get("findings", {}) or {}, source_path=str(path))
 
 
-def build_baseline(findings) -> Baseline:
-    """Snapshot the current findings, keeping enough detail to read later."""
+def issue_fingerprint(issue) -> str:
+    """Stable identity for a cross server or tool level issue."""
+    from .fingerprint import fingerprint
+
+    return fingerprint(issue.kind, ",".join(sorted(issue.subjects())), "")
+
+
+def build_baseline(findings, issues=None) -> Baseline:
+    """Snapshot what is already here, keeping enough detail to read later.
+
+    Issues belong in a baseline as much as paths do. A repository adopting the
+    tool with three unpinned servers should be able to record that once, the
+    same way it records existing attack paths, rather than being pushed into the
+    accept list, which is meant for decisions rather than snapshots.
+    """
     from .fingerprint import fingerprint_of
 
     entries: dict[str, dict[str, Any]] = {}
@@ -65,16 +78,26 @@ def build_baseline(findings) -> Baseline:
         if finding.suppressed:
             continue
         entries[fingerprint_of(finding)] = {
+            "kind": "path",
             "rule": finding.rule,
             "severity": finding.severity,
             "source": f"{finding.source.server}/{finding.source.tool}",
             "sink": f"{finding.sink.server}/{finding.sink.tool}",
         }
+    for issue in issues or []:
+        if issue.suppressed:
+            continue
+        entries[issue_fingerprint(issue)] = {
+            "kind": "issue",
+            "rule": issue.kind,
+            "severity": issue.severity,
+            "subjects": sorted(issue.subjects()),
+        }
     return Baseline(entries=entries)
 
 
-def apply_baseline(findings, baseline: Baseline | None) -> int:
-    """Mark findings that were already known. Returns how many were marked."""
+def apply_baseline(findings, baseline: Baseline | None, issues=None) -> int:
+    """Mark findings and issues that were already known. Returns how many."""
     if not baseline:
         return 0
     from .fingerprint import fingerprint_of
@@ -86,5 +109,13 @@ def apply_baseline(findings, baseline: Baseline | None) -> int:
         if baseline.has(fingerprint_of(finding)):
             finding.status = BASELINED
             finding.baseline = {"source": baseline.source_path}
+            marked += 1
+
+    for issue in issues or []:
+        if issue.suppressed:
+            continue
+        if baseline.has(issue_fingerprint(issue)):
+            issue.status = BASELINED
+            issue.suppression = {"reason": "present in the baseline, so not treated as new"}
             marked += 1
     return marked

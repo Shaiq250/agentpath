@@ -209,6 +209,42 @@ class StdioClient:
         return tools
 
 
+    def list_named(self, method: str, key: str) -> list[dict[str, Any]]:
+        """Page through prompts/list or resources/list.
+
+        A server that does not implement these answers with a method not found
+        error, which is ordinary rather than a failure: plenty of servers offer
+        tools and nothing else. Anything else is left to raise, because a server
+        that breaks when asked a standard question is worth knowing about.
+        """
+        found: list[dict[str, Any]] = []
+        cursor: str | None = None
+        for _ in range(50):
+            try:
+                result = self._request(method, {"cursor": cursor} if cursor else {})
+            except EnumerationError as exc:
+                if "-32601" in str(exc) or "not found" in str(exc).lower():
+                    return []
+                raise
+            for entry in result.get(key, []) or []:
+                if isinstance(entry, dict) and (entry.get("name") or entry.get("uri")):
+                    found.append(entry)
+            cursor = result.get("nextCursor")
+            if not cursor:
+                break
+        return found
+
+
+def enumerate_everything(command: str, args: list[str], env: dict[str, str] | None = None,
+                         timeout: float = DEFAULT_TIMEOUT):
+    """Tools, prompts and resources in one connection."""
+    with StdioClient(command, args, env, timeout) as client:
+        client.handshake()
+        return (client.list_tools(),
+                client.list_named("prompts/list", "prompts"),
+                client.list_named("resources/list", "resources"))
+
+
 def enumerate_tools(command: str, args: list[str], env: dict[str, str] | None = None,
                     timeout: float = DEFAULT_TIMEOUT) -> list[RawTool]:
     """Start a server, ask for its tools, stop it. Raises EnumerationError."""

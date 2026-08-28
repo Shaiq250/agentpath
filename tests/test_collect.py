@@ -134,3 +134,38 @@ def test_collected_manifest_round_trips(tmp_path):
     assert reloaded.complete is False
     assert [s.name for s in reloaded.unenumerated()] == ["bad"]
     assert len(list(reloaded.tools())) == 2
+
+
+def test_prompts_and_resources_are_collected(tmp_path):
+    """A server exposes more than tools, and the other two reach the model too."""
+    result = collect([spec("rich", "rich_server.py")], cache_file=tmp_path / "c.json")
+    server = result.agent.servers[0]
+    assert [t.name for t in server.tools] == ["read_note"]
+    assert [p["name"] for p in server.prompts] == ["summarise"]
+    assert [r["name"] for r in server.resources] == ["guide"]
+
+
+def test_a_server_without_prompts_is_not_a_failure(tmp_path):
+    """Plenty of servers offer tools and nothing else. That is ordinary."""
+    result = collect([spec("good", "good_server.py")], cache_file=tmp_path / "c.json")
+    server = result.agent.servers[0]
+    assert server.status.state == ENUMERATED
+    assert server.prompts == [] and server.resources == []
+
+
+def test_a_poisoned_prompt_is_found_after_collection(tmp_path):
+    from agentpath.classify import classify_agent
+    from agentpath.toolaudit import POISONED_DESCRIPTION, find_tool_issues
+
+    result = collect([spec("rich", "rich_server.py")], cache_file=tmp_path / "c.json")
+    issues = find_tool_issues(classify_agent(result.agent))
+    assert [i.kind for i in issues] == [POISONED_DESCRIPTION]
+    assert issues[0].tools == ["rich/summarise"]
+    assert "prompt" in issues[0].title
+
+
+def test_prompts_and_resources_survive_the_manifest_round_trip(tmp_path):
+    result = collect([spec("rich", "rich_server.py")], cache_file=tmp_path / "c.json")
+    reloaded = parse_manifest(manifest_to_dict(result.agent, result.collection))
+    assert reloaded.servers[0].prompts[0]["name"] == "summarise"
+    assert reloaded.servers[0].resources[0]["name"] == "guide"

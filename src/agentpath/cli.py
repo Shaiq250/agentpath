@@ -357,6 +357,8 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     apply_policy(agent, policy)
     findings = run_analysis(agent, policy)
 
+    issues = find_issues(agent, policy)
+
     baseline = None
     if args.baseline:
         try:
@@ -364,13 +366,13 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         except BaselineError as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 2
-    marked = apply_baseline(findings, baseline)
+    marked = apply_baseline(findings, baseline, issues)
     if marked:
         print(f"{marked} findings are in the baseline and will not fail this run",
               file=sys.stderr)
 
     if args.write_baseline:
-        snapshot = build_baseline(findings)
+        snapshot = build_baseline(findings, issues)
         Path(args.write_baseline).write_text(
             json.dumps(snapshot.to_dict(), indent=2), encoding="utf-8")
         print(f"wrote {len(snapshot.entries)} findings to {args.write_baseline}. "
@@ -385,8 +387,6 @@ def cmd_analyze(args: argparse.Namespace) -> int:
             print(f"error: could not read confirmations: {exc}", file=sys.stderr)
             return 2
         apply_confirmations(findings, payload.get("results", []))
-
-    issues = find_issues(agent, policy)
 
     if args.format == "json":
         text = to_json(agent, findings, issues)
@@ -419,7 +419,7 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         for finding in findings
         if finding.counts_against_you
     ) or any(at_least(issue.severity, args.fail_on)
-             for issue in issues if not issue.suppressed)
+             for issue in issues if issue.counts_against_you)
     # An incomplete scan also exits non zero. In CI, a scan that quietly covered
     # half the servers should not pass as green.
     incomplete = not agent.complete and not args.allow_incomplete

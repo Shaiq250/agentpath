@@ -88,6 +88,35 @@ def _scan(text: str, patterns) -> list[tuple[str, str]]:
     return found
 
 
+def _carriers(agent: Agent):
+    """Everything a server exposes whose text reaches the model.
+
+    Tools are the obvious one. Prompts are templates the user can invoke and
+    their text goes straight into the conversation. Resources are content the
+    agent reads. All three are loaded into the same context, and text that steers
+    a model does not care which of them it arrived in. A server that keeps its
+    tools clean and hides an instruction in a prompt should not come out clean.
+    """
+    for tool in agent.tools():
+        yield "tool", tool.qualified, f"{tool.description} " + " ".join(
+            str(k) for k in tool.input_schema), tool.description or ""
+
+    for server in agent.servers:
+        for prompt in server.prompts:
+            name = prompt.get("name") or "unnamed"
+            text = " ".join(str(prompt.get(field, "")) for field in
+                            ("description", "title"))
+            arguments = " ".join(str(a.get("description", ""))
+                                 for a in prompt.get("arguments", []) or []
+                                 if isinstance(a, dict))
+            yield "prompt", f"{server.name}/{name}", f"{text} {arguments}", text
+        for resource in server.resources:
+            name = resource.get("name") or resource.get("uri") or "unnamed"
+            text = " ".join(str(resource.get(field, "")) for field in
+                            ("description", "title"))
+            yield "resource", f"{server.name}/{name}", text, text
+
+
 def find_poisoned_descriptions(agent: Agent) -> list[Issue]:
     """Tool poisoning: instructions aimed at the model inside a tool description.
 
@@ -96,8 +125,7 @@ def find_poisoned_descriptions(agent: Agent) -> list[Issue]:
     once, at approval, if at all.
     """
     issues: list[Issue] = []
-    for tool in agent.tools():
-        text = f"{tool.description} {' '.join(str(k) for k in tool.input_schema)}"
+    for kind, qualified, text, _display in _carriers(agent):
         if not text.strip():
             continue
 
@@ -115,22 +143,22 @@ def find_poisoned_descriptions(agent: Agent) -> list[Issue]:
             id="",
             kind=POISONED_DESCRIPTION,
             severity="critical" if concealing else "high",
-            title="A tool description contains instructions aimed at the model",
+            title=f"A {kind} description contains instructions aimed at the model",
             detail=(
-                f"{tool.qualified} has a description that {reasons}. The phrase or phrases "
-                f"matched were {quoted}. A tool description is loaded into the model's "
-                f"context every time the tool list is read, so text like this is acted on "
-                f"rather than merely displayed, and the user typically sees it once at "
-                f"approval if at all."
+                f"{qualified} is a {kind} whose description {reasons}. The phrase or "
+                f"phrases matched were {quoted}. This text is loaded into the model's "
+                f"context, so it is acted on rather than merely displayed, and the user "
+                f"typically sees it once at approval if at all."
             ),
             fix=(
-                f"Read the full description of {tool.qualified} as it is sent to the model, "
+                f"Read the full description of {qualified} as it is sent to the model, "
                 f"not as your client summarises it. If the wording was not put there by "
                 f"someone you trust, treat the whole server as hostile: a description that "
                 f"steers the model is the tool poisoning pattern."
             ),
-            tools=[tool.qualified],
-            evidence={"matched": [phrase for phrase, _ in hits], "conceals": concealing},
+            tools=[qualified],
+            evidence={"matched": [phrase for phrase, _ in hits], "conceals": concealing,
+                      "carrier": kind},
         ))
     return issues
 
@@ -143,8 +171,7 @@ def find_concealed_text(agent: Agent) -> list[Issue]:
     instructions the model still receives in full.
     """
     issues: list[Issue] = []
-    for tool in agent.tools():
-        text = tool.description or ""
+    for kind, qualified, _scanned, text in _carriers(agent):
         found: dict[str, int] = {}
         for char in text:
             point = ord(char)
@@ -163,20 +190,20 @@ def find_concealed_text(agent: Agent) -> list[Issue]:
             id="",
             kind=CONCEALED_TEXT,
             severity="critical",
-            title="A tool description contains characters that do not render",
+            title=f"A {kind} description contains characters that do not render",
             detail=(
-                f"{tool.qualified} carries {summary} inside its description. These do not "
+                f"{qualified} carries {summary} inside its description. These do not "
                 f"appear when the description is displayed, so what a person approves and "
                 f"what the model receives are not the same text."
                 + (f" The hidden characters decode to: {decoded!r}." if decoded else "")
             ),
             fix=(
-                f"Treat {tool.qualified} as hostile until its author explains the hidden "
+                f"Treat {qualified} as hostile until its author explains the hidden "
                 f"characters. There is no benign reason for a tool description to contain "
                 f"text that renders as nothing."
             ),
-            tools=[tool.qualified],
-            evidence={"kinds": found, "decoded": decoded},
+            tools=[qualified],
+            evidence={"kinds": found, "decoded": decoded, "carrier": kind},
         ))
     return issues
 

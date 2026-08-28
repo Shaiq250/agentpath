@@ -27,7 +27,13 @@ from pathlib import Path
 from typing import Callable, Iterable
 
 from .discovery import STDIO, ServerSpec, discover
-from .mcp_stdio import DEFAULT_TIMEOUT, EnumerationError, RawTool, enumerate_tools
+from .mcp_stdio import (
+    DEFAULT_TIMEOUT,
+    EnumerationError,
+    RawTool,
+    enumerate_everything,
+    enumerate_tools,
+)
 from .model import (
     ENUMERATED,
     FAILED,
@@ -163,7 +169,10 @@ def collect(
 
         _emit(on_event, "launching", spec, spec.command_line)
         try:
-            raw_tools = enumerate_tools(spec.command, spec.args, spec.env, timeout)
+            raw_tools, prompts, resources = enumerate_everything(
+                spec.command, spec.args, spec.env, timeout)
+            server.prompts = prompts
+            server.resources = resources
         except EnumerationError as exc:
             server.status = EnumerationStatus(FAILED, str(exc))
             _emit(on_event, "failed", spec, str(exc))
@@ -201,7 +210,13 @@ def collect(
                 tool.name: tool_fingerprint(tool) for tool in server.tools
             },
         }
-        _emit(on_event, "enumerated", spec, f"{len(server.tools)} tools")
+        extra = []
+        if server.prompts:
+            extra.append(f"{len(server.prompts)} prompts")
+        if server.resources:
+            extra.append(f"{len(server.resources)} resources")
+        _emit(on_event, "enumerated", spec,
+              ", ".join([f"{len(server.tools)} tools"] + extra))
         servers.append(server)
 
     if use_cache:
