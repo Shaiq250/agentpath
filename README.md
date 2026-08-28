@@ -99,6 +99,33 @@ browser and the whole picture is in one file. There is a
 pre generated copy at `examples/demo/sample-report.html` if you would rather look
 before you install.
 
+## Tools that did not come from MCP
+
+The analysis never cared where a tool came from. It works on a manifest, and a
+manifest is a list of tools with names, descriptions and schemas.
+
+```
+agentpath import tools.json -o manifest.json          # tool definitions
+agentpath import openapi.json -o manifest.json        # an API description
+agentpath analyze manifest.json
+```
+
+The first reads the array of tool definitions an agent built against a model API
+already has, in either the snake_case or camelCase spelling, and unwraps the
+OpenAI function wrapper if it finds one.
+
+The second turns each operation in an OpenAPI document into a tool, which is
+worth more than it sounds: the HTTP method says something the tool name often
+does not. A GET is a read whatever it is called, and a DELETE changes something
+even when its summary is a cheerful sentence about tidying up. Those become the
+same annotations an MCP server would declare, so the classifier does not need to
+know where the tool came from.
+
+If your tools live somewhere neither importer covers, `docs/manifest.md`
+documents the format. An importer is a function that reads something and returns
+that structure, and the two that ship are about a hundred lines each. There is no
+plugin system because there does not need to be one.
+
 ## Scanning your own machine
 
 ```

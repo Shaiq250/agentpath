@@ -28,6 +28,13 @@ the part worth reading.
 | Server side vulnerabilities, for example command injection in a server | Not detected | This analyses what a server declares, not how it is implemented. Use ordinary application security tooling for the server itself |
 | Runtime enforcement | Out of scope | agentpath analyses and tests. Blocking a call as it happens is what a gateway does, and this is not one |
 
+## Sources other than MCP
+
+Everything above works on tool definitions rather than on MCP specifically.
+`agentpath import` converts a tool definition array or an OpenAPI document into
+the same manifest, and `docs/manifest.md` documents the format so an unsupported
+source can be handled in about thirty lines without changing anything here.
+
 ## On the not detected rows
 
 They are not a roadmap. Confused deputy and typosquatting need information a tool

@@ -27,6 +27,7 @@ from .crossserver import find_issues
 from .collect import collect as run_collect
 from .discovery import ServerSpec, config_locations, discover
 from .findings import analyze as run_analysis
+from .importers import IMPORTERS, ImportError_, to_manifest
 from .labels import SEVERITIES, at_least
 from .model import ManifestError, load_manifest, manifest_to_dict
 from .policy import PolicyError, apply_policy, find_policy, load_policy
@@ -83,6 +84,22 @@ def build_parser() -> argparse.ArgumentParser:
     confirm.add_argument("--attempts", type=int, default=3,
                          help="payload variations to try per path (default: 3)")
     confirm.add_argument("--policy", help="path to an .agentpath.yml file")
+
+    importer = sub.add_parser(
+        "import",
+        help="build a manifest from tools that did not come from MCP",
+        description=(
+            "Converts tool definitions from somewhere else into a manifest, which "
+            "analyze and confirm then treat like any other. Reads a file and writes a "
+            "file: nothing is executed and nothing is fetched."
+        ),
+    )
+    importer.add_argument("path", help="a JSON file of tool definitions or an OpenAPI document")
+    importer.add_argument("-o", "--out", default="manifest.json")
+    importer.add_argument("--format", choices=("auto", *sorted(IMPORTERS)), default="auto")
+    importer.add_argument("--server", default="",
+                          help="name to give the group of tools in the manifest")
+    importer.add_argument("--name", default="", help="name to give the agent")
 
     analyze = sub.add_parser("analyze", help="analyse an agent manifest, offline")
     analyze.add_argument("manifest", help="path to an agent manifest JSON file")
@@ -201,6 +218,30 @@ def cmd_collect(args: argparse.Namespace) -> int:
               f"enumerated ({names}).", file=sys.stderr)
         print("Their tools are unknown, so any attack path through them will be missing "
               "from the analysis.", file=sys.stderr)
+    return 0
+
+
+# ---------------------------------------------------------------- import
+
+def cmd_import(args: argparse.Namespace) -> int:
+    try:
+        data = json.loads(Path(args.path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"error: could not read {args.path}: {exc}", file=sys.stderr)
+        return 2
+
+    try:
+        manifest = to_manifest(data, args.format, args.server, args.name, args.path)
+    except ImportError_ as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    Path(args.out).write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    tools = len(manifest["servers"][0]["tools"])
+    print(f"Wrote {args.out}: {tools} tools from {manifest['agent']['harness']}.",
+          file=sys.stderr)
+    print("These tools were listed in the file rather than obtained from a running "
+          "server, so the manifest is complete by construction.", file=sys.stderr)
     return 0
 
 
@@ -393,6 +434,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_collect(args)
     if args.command == "confirm":
         return cmd_confirm(args)
+    if args.command == "import":
+        return cmd_import(args)
     return 2
 
 
