@@ -118,6 +118,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="write the current findings to a baseline file and exit 0",
     )
     analyze.add_argument(
+        "--ignore-declared",
+        action="store_true",
+        help="for the exit code only, ignore severity reductions that came from claims "
+             "in the policy file, such as a sink declared as gated behind human approval",
+    )
+    analyze.add_argument(
         "--allow-incomplete",
         action="store_true",
         help="do not exit non zero merely because some servers were not enumerated",
@@ -361,8 +367,14 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         except BrokenPipeError:  # output piped into head, less and friends
             pass
 
+    from .mitigation import undeclared_severity
+
+    def severity_for_exit(finding):
+        return (undeclared_severity(finding) if args.ignore_declared
+                else finding.severity)
+
     triggered = any(
-        at_least(finding.severity, args.fail_on)
+        at_least(severity_for_exit(finding), args.fail_on)
         for finding in findings
         if finding.counts_against_you
     ) or any(at_least(issue.severity, args.fail_on)

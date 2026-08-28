@@ -153,3 +153,33 @@ def test_an_approved_flow_lowers_a_path_that_has_room_to_move():
         "approved_flows": [{"from": "internal", "to": "internal",
                             "reason": "same estate, reviewed"}]}))[0]
     assert flowed.severity != plain.severity
+
+
+def test_ignore_declared_uses_the_severity_before_any_claim():
+    """A gated: line for a tool nobody gates should not be able to turn CI green."""
+    from agentpath.mitigation import undeclared_severity
+
+    agent = two_server_agent("internal", "internal")
+    policy = parse_policy({"gated": ["core/run_shell"]})
+    finding = analyze(agent, policy)[0]
+
+    assert finding.original_severity == "critical"
+    assert finding.severity == "medium"        # lowered by the domain and the claim
+    assert undeclared_severity(finding) == "high"   # only the checkable part counts
+
+
+def test_the_flag_changes_the_exit_code(tmp_path):
+    import json
+    from agentpath.cli import main
+    from agentpath.model import manifest_to_dict
+
+    manifest = tmp_path / "m.json"
+    manifest.write_text(json.dumps(manifest_to_dict(two_server_agent("internal",
+                                                                    "internal"))))
+    policy = tmp_path / ".agentpath.yml"
+    policy.write_text("gated:\n  - \"core/run_shell\"\n")
+
+    assert main(["analyze", str(manifest), "--policy", str(policy),
+                 "--fail-on", "high"]) == 0
+    assert main(["analyze", str(manifest), "--policy", str(policy),
+                 "--fail-on", "high", "--ignore-declared"]) == 1

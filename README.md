@@ -347,6 +347,18 @@ the configuration itself or declared in your policy file and not verified. The
 original severity stays visible. If the gate does not actually exist, the report
 should let someone notice that rather than quietly build it in.
 
+For CI there is a third control. `--ignore-declared` makes the exit code use the
+severity a finding would have had without any claim from the policy file, while
+still applying the adjustments that come from the configuration itself. Without
+it, adding a `gated:` line for a tool nobody actually gates is enough to turn a
+build green. The finding stays in the report either way, so nothing is hidden,
+but a build passing on an unverified assertion is close enough to the failure
+this tool spends its time avoiding.
+
+```
+agentpath analyze manifest.json --policy .agentpath.yml --fail-on high --ignore-declared
+```
+
 ## How accurate is the classifier
 
 There is a hand labelled corpus in `examples/corpus/`, 30 tools across six

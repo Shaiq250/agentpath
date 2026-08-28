@@ -104,6 +104,23 @@ def adjustments_for(finding, agent, policy) -> list[Adjustment]:
     return out
 
 
+def undeclared_severity(finding) -> str:
+    """The severity ignoring anything the user only asserted.
+
+    Boundary reasoning comes from the configuration and is checkable. A gated
+    sink or a reviewed flow is a claim, and claims are cheap: adding a `gated:`
+    line for a tool nobody actually gates would otherwise be enough to turn a
+    build green. The finding would still be in the report, so nothing is hidden,
+    but a build passing on the strength of an unverified assertion is close
+    enough to the failure this tool keeps trying to avoid.
+    """
+    if not finding.adjustments:
+        return finding.severity
+    steps = sum({"up": 1, "down": -1}.get(a["direction"], 0)
+                for a in finding.adjustments if not a.get("declared"))
+    return _shift(finding.original_severity or finding.severity, steps)
+
+
 def apply_mitigations(findings, agent, policy) -> None:
     """Adjust severities in place, keeping the original and the reasoning."""
     for finding in findings:

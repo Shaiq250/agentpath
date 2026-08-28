@@ -27,6 +27,13 @@ inputs:
     description: Fail the step when a finding at this severity or above is not baselined.
     required: false
     default: high
+  ignore-declared:
+    description: >
+      For the exit code only, ignore severity reductions that came from claims in the
+      policy file, such as a sink declared as gated behind human approval. Recommended
+      in CI, where a claim nobody checks should not be able to turn the build green.
+    required: false
+    default: "false"
   sarif-file:
     description: Where to write SARIF output for upload to code scanning.
     required: false
@@ -62,6 +69,7 @@ runs:
         POLICY: ${{ inputs.policy }}
         BASELINE: ${{ inputs.baseline }}
         FAIL_ON: ${{ inputs.fail-on }}
+        IGNORE_DECLARED: ${{ inputs.ignore-declared }}
         SARIF: ${{ inputs.sarif-file }}
       run: |
         set -euo pipefail
@@ -96,6 +104,9 @@ runs:
         if [ -n "$POLICY" ]; then extra+=(--policy "$POLICY"); fi
         if [ -n "$BASELINE" ]; then extra+=(--baseline "$BASELINE"); fi
 
+        gate=()
+        if [ "$IGNORE_DECLARED" = "true" ]; then gate+=(--ignore-declared); fi
+
         echo "sarif-file=$SARIF" >> "$GITHUB_OUTPUT"
 
         # A readable report in the job log as well, since SARIF is for machines
@@ -104,4 +115,4 @@ runs:
         agentpath analyze "$manifest" "${extra[@]+"${extra[@]}"}" || true
 
         agentpath analyze "$manifest" --format sarif -o "$SARIF" \
-          --fail-on "$FAIL_ON" "${extra[@]+"${extra[@]}"}"
+          --fail-on "$FAIL_ON" "${extra[@]+"${extra[@]}"}" "${gate[@]+"${gate[@]}"}"
