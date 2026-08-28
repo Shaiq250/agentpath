@@ -1,0 +1,71 @@
+Recorded 2026-08-27, before any rule was changed in response to it.
+
+Measures whether the description rules CATCH tool poisoning they have never
+seen, using deliberately vulnerable servers published by other people:
+invariantlabs-ai/mcp-injection-experiments (the original tool poisoning and
+shadowing demonstrations) and harishsg993010/damn-vulnerable-MCP-server.
+
+Positives are labelled from those repositories' own documentation. DVMCP names
+challenge 2 as its tool poisoning challenge and challenge 5 as its shadowing
+challenge, so the answer key was written by the people who built the samples.
+
+Recall corpus: 31 tools, 4 documented as poisoned by their own repositories
+
+caught          3 of 4 (75%)
+missed          1
+false positives 1 of 27 benign tools
+
+  MISSED dvmcp/easy-challenge2-search_company_database
+  FALSE POSITIVE dvmcp/hard-challenge10-get_user_profile
+
+
+--------------------------------------------------------------------
+Re-run 2026-08-27 under the settled labelling rule, still before any
+rule was changed in response to either run. See ground-truth.json for
+the rule and for the two earlier attempts that were wrong.
+
+Recall corpus: 31 tools, 6 documented as poisoned by their own repositories
+
+caught          4 of 6 (67%)
+missed          2
+false positives 0 of 25 benign tools
+
+  MISSED dvmcp/easy-challenge2-search_company_database
+  MISSED dvmcp/hard-challenge10-analyze_log_file
+
+
+--------------------------------------------------------------------
+Final run under the settled rule, still before any rule was changed.
+Three labelling attempts were needed and all three are described in
+ground-truth.json, including why the first two were wrong. The number
+moved from 75 to 40 to 67 to 80 percent purely because of labelling,
+which is worth knowing: on a corpus this small the labelling decision
+matters more than the detector does.
+
+Recall corpus: 31 tools, 5 documented as poisoned by their own repositories
+
+caught          4 of 5 (80%)
+missed          1
+false positives 0 of 26 benign tools
+
+  MISSED dvmcp/easy-challenge2-search_company_database
+
+
+--------------------------------------------------------------------
+AFTER the fix. The one genuine miss was a <HIDDEN> block, which the
+tag pattern did not know about because it listed three tag words
+instead of describing what a pseudo tag is. Generalised to any
+shouted pseudo tag wrapping a block of text.
+
+This run is therefore NOT an independent measurement. The rule was
+changed in response to the runs above, so this corpus is now a
+regression guard. The honest figure is the 80 percent recorded
+before the fix. A new independent number needs samples nobody here
+has looked at.
+
+Recall corpus: 31 tools, 6 documented as poisoned by their own repositories
+
+caught          6 of 6 (100%)
+missed          0
+false positives 0 of 25 benign tools
+
