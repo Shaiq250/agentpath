@@ -129,6 +129,8 @@ def to_sarif(agent: Agent, findings: list[Finding], version: str = "0.1.0",
             }],
             "properties": {
                 "severity": finding.severity,
+                "originalSeverity": finding.original_severity or finding.severity,
+                "severityAdjustments": finding.adjustments,
                 "status": finding.status,
                 "crossesTrustBoundary": finding.crosses_trust_boundary,
                 "sourceTool": f"{finding.source.server}/{finding.source.tool}",

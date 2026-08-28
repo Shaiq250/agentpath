@@ -59,8 +59,30 @@ class Acceptance:
 
 
 @dataclass
+class ApprovedFlow:
+    """A path between two trust domains that someone has reviewed and accepted.
+
+    Deliberately weaker than an acceptance. An acceptance says "this exact path
+    is fine and I do not want to see it". An approved flow says "traffic in this
+    direction has been thought about", which lowers a finding without hiding it,
+    because the reviewer approved a shape rather than this particular pair.
+    """
+
+    source: str = "*"
+    sink: str = "*"
+    reason: str = ""
+
+    def matches(self, source_domain: str, sink_domain: str) -> bool:
+        return (fnmatch.fnmatch(source_domain, self.source)
+                and fnmatch.fnmatch(sink_domain, self.sink))
+
+
+@dataclass
 class Policy:
     label_sets: dict[str, list[str]] = field(default_factory=dict)
+    domains: dict[str, str] = field(default_factory=dict)
+    approved_flows: list[ApprovedFlow] = field(default_factory=list)
+    gated: list[str] = field(default_factory=list)
     label_adds: dict[str, list[str]] = field(default_factory=dict)
     label_removes: dict[str, list[str]] = field(default_factory=dict)
     trust: dict[str, str] = field(default_factory=dict)
@@ -70,7 +92,18 @@ class Policy:
     @property
     def empty(self) -> bool:
         return not (self.label_sets or self.label_adds or self.label_removes
-                    or self.trust or self.acceptances)
+                    or self.trust or self.acceptances or self.domains
+                    or self.approved_flows or self.gated)
+
+    def is_gated(self, qualified: str) -> bool:
+        """Whether the user says this tool needs a human to approve each call."""
+        return any(fnmatch.fnmatch(qualified, pattern) for pattern in self.gated)
+
+    def approved_flow_for(self, source_domain: str, sink_domain: str) -> ApprovedFlow | None:
+        for flow in self.approved_flows:
+            if flow.matches(source_domain, sink_domain):
+                return flow
+        return None
 
     def acceptance_for(self, rule: str, source: str, sink: str) -> Acceptance | None:
         for acceptance in self.acceptances:
@@ -116,6 +149,40 @@ def parse_policy(raw: dict[str, Any], source_path: str = "") -> Policy:
             policy.label_adds[tool] = _validate_labels(spec["add"], where + ".add")
         if "remove" in spec:
             policy.label_removes[tool] = _validate_labels(spec["remove"], where + ".remove")
+
+    # domains is the readable form: one line per domain listing its servers.
+    # trust is the original per server form. Both end up in the same map.
+    domains = raw.get("domains") or {}
+    if not isinstance(domains, dict):
+        raise PolicyError(f"{source_path}: domains must be a mapping of domain to servers")
+    for domain, servers in domains.items():
+        if isinstance(servers, str):
+            servers = [servers]
+        if not isinstance(servers, list):
+            raise PolicyError(f"{source_path}: domains.{domain} must be a list of servers")
+        for server in servers:
+            policy.domains[str(server)] = str(domain)
+
+    gated = raw.get("gated") or []
+    if isinstance(gated, str):
+        gated = [gated]
+    if not isinstance(gated, list):
+        raise PolicyError(f"{source_path}: gated must be a list of tools")
+    policy.gated = [str(entry) for entry in gated]
+
+    for index, entry in enumerate(raw.get("approved_flows") or []):
+        if not isinstance(entry, dict):
+            raise PolicyError(f"{source_path}: approved_flows[{index}] must be a mapping")
+        if not entry.get("reason"):
+            raise PolicyError(
+                f"{source_path}: approved_flows[{index}] needs a reason. An approved flow "
+                f"lowers findings, so it has to record who thought about it and why"
+            )
+        policy.approved_flows.append(ApprovedFlow(
+            source=str(entry.get("from", "*")),
+            sink=str(entry.get("to", "*")),
+            reason=str(entry["reason"]),
+        ))
 
     trust = raw.get("trust") or {}
     if not isinstance(trust, dict):
@@ -173,6 +240,10 @@ def apply_policy(agent: Agent, policy: Policy | None) -> Agent:
         return agent
 
     for server in agent.servers:
+        # An explicit per server trust wins over a domain grouping, since it is
+        # the more specific statement.
+        if server.name in policy.domains:
+            server.trust = policy.domains[server.name]
         if server.name in policy.trust:
             server.trust = policy.trust[server.name]
 

@@ -37,6 +37,8 @@ class Finding:
     baseline: dict[str, str] = field(default_factory=dict)
     # Other server pairings that produce the same path, collapsed into this one.
     also_matches: list[str] = field(default_factory=list)
+    original_severity: str = ""
+    adjustments: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def suppressed(self) -> bool:
@@ -125,6 +127,10 @@ def analyze(agent: Agent, policy=None) -> list[Finding]:
                 }
 
     findings = _collapse_shadowed(list(best.values()), agent)
+    if policy is not None:
+        from .mitigation import apply_mitigations
+
+        apply_mitigations(findings, agent, policy)
     findings = sorted(
         findings,
         key=lambda f: (-severity_rank(f.severity), f.source.server, f.source.tool,

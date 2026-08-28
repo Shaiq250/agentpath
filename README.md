@@ -309,6 +309,44 @@ indistinguishable from a bug. An acceptance without a reason is rejected.
 The file is read from the current directory only. Inheriting suppressions from a
 parent directory you had forgotten about would be a nasty way to lose a finding.
 
+## Trust domains and mitigations
+
+A tool that reports every path at full severity is describing a theoretical
+system rather than the one in front of you. The policy file can describe what is
+already true, and findings move accordingly:
+
+```yaml
+domains:
+  privileged: [workspace, vault]
+  internal: [wiki]
+  third-party: [community-plugin, web]
+
+gated:
+  - "workspace/deploy"          # a human approves each call
+
+approved_flows:
+  - from: internal
+    to: privileged
+    reason: "Same estate, reviewed 2026-09-01"
+```
+
+A path that reaches a more trusted domain than it started in is raised. One that
+stays inside a single domain is lowered. A sink you have gated behind human
+approval is lowered, and so is a flow you have reviewed.
+
+Two rules keep this from becoming a way to make findings disappear.
+
+**Severity moves, findings do not.** Nothing here can push a finding below low
+and nothing here removes one. Hiding a finding is what the accept list is for,
+and that is a decision someone makes explicitly, with a reason and a date.
+
+**Anything you assert is labelled as asserted.** agentpath cannot see whether a
+sink really is gated behind a human. It only knows you said so. So every
+adjustment is printed with its reason and with where it came from, either from
+the configuration itself or declared in your policy file and not verified. The
+original severity stays visible. If the gate does not actually exist, the report
+should let someone notice that rather than quietly build it in.
+
 ## How accurate is the classifier
 
 There is a hand labelled corpus in `examples/corpus/`, 30 tools across six

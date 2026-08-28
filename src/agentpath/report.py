@@ -300,6 +300,21 @@ def to_markdown(agent: Agent, findings: list[Finding], issues: list[Issue] | Non
             lines.append(f"`{finding.source.server}/{finding.source.tool}` "
                          f"-> agent -> `{finding.sink.server}/{finding.sink.tool}`")
             lines.append("")
+            if finding.adjustments:
+                moved = (f"Severity adjusted from {finding.original_severity} to "
+                         f"{finding.severity}."
+                         if finding.original_severity != finding.severity
+                         else "Severity considered and left unchanged.")
+                lines.append(f"**{moved}**")
+                lines.append("")
+                for adjustment in finding.adjustments:
+                    arrow = {"up": "raised", "down": "lowered"}.get(
+                        adjustment["direction"], "considered")
+                    source = ("declared in your policy file, not verified by this tool"
+                              if adjustment["declared"] else "from the configuration itself")
+                    lines.append(f"- {arrow}: {adjustment['reason']} ({source})")
+                lines.append("")
+
             if finding.also_matches:
                 others = "; ".join(finding.also_matches)
                 lines.append(f"The same path also exists as: {others}. These are the same "
@@ -364,6 +379,9 @@ def to_json(agent: Agent, findings: list[Finding], issues: list[Issue] | None = 
         ],
         "note": DISCLAIMER,
         "cross_server_issues": [issue.to_dict() for issue in (issues or [])],
+        "severity_adjustments_are_partly_declared": (
+            "Adjustments marked declared come from the policy file and were not verified "
+            "by this tool."),
         "drift_not_checked": sorted(no_baseline_servers(agent)),
         "findings": [finding.to_dict() for finding in findings],
     }
