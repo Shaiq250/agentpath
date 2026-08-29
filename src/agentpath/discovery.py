@@ -41,6 +41,21 @@ class ServerSpec:
         return " ".join([self.command, *self.args]).strip()
 
 
+def _flatten(value: Any) -> str:
+    """A config value as a string, however it was written.
+
+    A command arrives as a list often enough to matter, because some tools
+    serialise argv that way.
+    """
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (list, tuple)):
+        return " ".join(_flatten(item) for item in value)
+    return str(value)
+
+
 def _home() -> Path:
     return Path(os.path.expanduser("~"))
 
@@ -82,18 +97,35 @@ def parse_config(raw: dict[str, Any], harness: str, source_path: str) -> list[Se
     for name, entry in block.items():
         if not isinstance(entry, dict):
             continue
-        url = entry.get("url", "")
+
+        # These files are written by hand and by other tools, so every field
+        # arrives in the wrong shape sooner or later. A scanner that throws on
+        # one odd entry has stopped scanning the whole machine, which is a worse
+        # outcome than reading that entry generously.
+        url = _flatten(entry.get("url"))
         declared = entry.get("type") or entry.get("transport")
         transport = HTTP if (url or declared in {"http", "sse", "streamable-http"}) else STDIO
+
+        raw_args = entry.get("args") or []
+        if isinstance(raw_args, str):
+            # A single string is one argument, not a string to iterate over.
+            raw_args = [raw_args]
+        elif not isinstance(raw_args, (list, tuple)):
+            raw_args = []
+
+        raw_env = entry.get("env")
+        env = ({str(k): _flatten(v) for k, v in raw_env.items()}
+               if isinstance(raw_env, dict) else {})
+
         specs.append(
             ServerSpec(
-                name=name,
+                name=str(name),
                 harness=harness,
                 source_path=source_path,
                 transport=transport,
-                command=entry.get("command", "") or "",
-                args=[str(a) for a in entry.get("args", []) or []],
-                env={str(k): str(v) for k, v in (entry.get("env") or {}).items()},
+                command=_flatten(entry.get("command")),
+                args=[_flatten(a) for a in raw_args],
+                env=env,
                 url=url,
             )
         )

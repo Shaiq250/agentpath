@@ -137,6 +137,16 @@ plugin system because there does not need to be one.
 ## Scanning your own machine
 
 ```
+agentpath scan
+```
+
+That reads the agent configuration on this machine, asks each server what it
+offers, and prints a report. It keeps the manifest, so the same report can be
+reproduced, re-analysed under a different policy, or confirmed against a model
+later without touching anything again. The two steps are also available
+separately:
+
+```
 agentpath collect -o manifest.json
 agentpath analyze manifest.json
 ```
@@ -477,6 +487,19 @@ is worse than no check.
 That also means untrusted-read, secret-read and egress have never been measured
 against an external answer key. Only state-change has. Worth knowing when reading
 any of these numbers.
+
+## Messy input
+
+Config files are written by hand and by other tools, so fields turn up in the
+wrong shape. A command written as a list, args written as one string, a
+description that is a number, a schema that is a list of names, a server entry
+that is null. All of it is read as generously as possible rather than rejected,
+because a scanner that throws on one malformed entry has stopped scanning the
+whole machine, which is a worse outcome than reading that entry loosely.
+
+The one place this does not apply is annotations. An annotation with the wrong
+type is not read as true, because a value that is not `true` should never be
+what clears a tool.
 
 ## Known limitations
 

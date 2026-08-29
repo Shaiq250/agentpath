@@ -96,6 +96,32 @@ def build_parser() -> argparse.ArgumentParser:
              "it follows the instructions inside it (default: all)",
     )
 
+    scan = sub.add_parser(
+        "scan",
+        help="collect and analyse this machine in one step",
+        description=(
+            "The short way in. Reads the agent configuration on this machine, asks each "
+            "server what it offers, and prints a report. Equivalent to collect followed "
+            "by analyze, and it keeps the manifest so the report can be reproduced or "
+            "re-analysed later without touching anything again."
+        ),
+    )
+    scan.add_argument("--no-launch", action="store_true",
+                      help="read config files only; do not start any server")
+    scan.add_argument("--manifest", default="manifest.json",
+                      help="where to keep the collected manifest (default: manifest.json)")
+    scan.add_argument("-o", "--out", help="write the report to a file instead of stdout")
+    scan.add_argument("--format", choices=("md", "json", "html", "sarif"), default="md")
+    scan.add_argument("--fail-on", choices=SEVERITIES, default="low")
+    scan.add_argument("--policy", help="path to an .agentpath.yml file")
+    scan.add_argument("--no-policy", action="store_true")
+    scan.add_argument("--baseline", help="a baseline file of findings that already existed")
+    scan.add_argument("--ignore-declared", action="store_true")
+    scan.add_argument("--allow-incomplete", action="store_true")
+    scan.add_argument("--timeout", type=float, default=15.0)
+    scan.add_argument("--no-cache", action="store_true")
+    scan.add_argument("--name", default="")
+
     importer = sub.add_parser(
         "import",
         help="build a manifest from tools that did not come from MCP",
@@ -238,6 +264,31 @@ def cmd_collect(args: argparse.Namespace) -> int:
         print("Their tools are unknown, so any attack path through them will be missing "
               "from the analysis.", file=sys.stderr)
     return 0
+
+
+# ---------------------------------------------------------------- scan
+
+def cmd_scan(args: argparse.Namespace) -> int:
+    """collect then analyze, so the first thing anyone runs produces a report.
+
+    Deliberately still writes the manifest. Keeping it means the report can be
+    reproduced, re-analysed with a different policy, or confirmed against a
+    model later, without going back and touching the machine a second time.
+    """
+    collect_args = argparse.Namespace(
+        out=args.manifest, no_launch=args.no_launch, name=args.name,
+        timeout=args.timeout, no_cache=args.no_cache)
+    code = cmd_collect(collect_args)
+    if code:
+        return code
+
+    print("", file=sys.stderr)
+    analyze_args = argparse.Namespace(
+        manifest=args.manifest, out=args.out, format=args.format,
+        fail_on=args.fail_on, policy=args.policy, no_policy=args.no_policy,
+        baseline=args.baseline, write_baseline=None, confirmations=None,
+        ignore_declared=args.ignore_declared, allow_incomplete=args.allow_incomplete)
+    return cmd_analyze(analyze_args)
 
 
 # ---------------------------------------------------------------- import
@@ -484,6 +535,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_confirm(args)
     if args.command == "import":
         return cmd_import(args)
+    if args.command == "scan":
+        return cmd_scan(args)
     return 2
 
 

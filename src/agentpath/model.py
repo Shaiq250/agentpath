@@ -146,6 +146,45 @@ class Agent:
         return found
 
 
+def _text(value: Any) -> str:
+    """Whatever the file contained, as a string.
+
+    Real config files are written by hand and by other tools, so a description
+    arrives as a number, a list of strings, or null often enough to matter. A
+    security scanner that crashes on one malformed entry has failed at the exact
+    moment it was needed, so everything is coerced rather than rejected.
+    """
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (list, tuple)):
+        return " ".join(_text(item) for item in value)
+    if isinstance(value, dict):
+        return " ".join(_text(item) for item in value.values())
+    return str(value)
+
+
+def _mapping(value: Any) -> dict[str, Any]:
+    """A schema or annotation block, whatever shape it arrived in."""
+    if isinstance(value, dict):
+        return {str(k): v for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        # Some generators emit a list of parameter names rather than a mapping.
+        return {str(item): "string" for item in value if isinstance(item, (str, int))}
+    return {}
+
+
+def _build_tool(entry: dict[str, Any], name: str, server: str) -> Tool:
+    return Tool(
+        name=str(name),
+        server=server,
+        description=_text(entry.get("description")),
+        input_schema=_mapping(entry.get("input_schema") or entry.get("inputSchema")),
+        annotations=_mapping(entry.get("annotations")),
+    )
+
+
 def load_manifest(path: str | Path) -> Agent:
     """Read and validate an agent manifest from disk."""
     path = Path(path)
@@ -204,15 +243,7 @@ def parse_manifest(raw: dict[str, Any], source: str = "<memory>") -> Agent:
                     f"{source}: server {server_name!r} defines {tool_name!r} twice"
                 )
             seen.add(tool_name)
-            server.tools.append(
-                Tool(
-                    name=tool_name,
-                    server=server_name,
-                    description=tool_entry.get("description", ""),
-                    input_schema=tool_entry.get("input_schema", {}) or {},
-                    annotations=tool_entry.get("annotations", {}) or {},
-                )
-            )
+            server.tools.append(_build_tool(tool_entry, tool_name, server_name))
         servers.append(server)
 
     return Agent(
