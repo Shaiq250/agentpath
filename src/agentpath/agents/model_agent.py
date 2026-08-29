@@ -22,7 +22,7 @@ from .base import AgentResult, AgentUnavailable
 
 API_URL = "https://api.anthropic.com/v1/messages"
 API_VERSION = "2023-06-01"
-DEFAULT_MODEL = "claude-sonnet-4-6"
+DEFAULT_MODEL = "claude-sonnet-5"
 MAX_TURNS = 6
 
 SYSTEM_PROMPT = (

@@ -21,7 +21,7 @@ the part worth reading.
 | Confusable tool names | Detected | Names that differ only by case, punctuation or a version suffix, across servers |
 | Supply chain: unpinned server package | Detected | A server started with `npx`, `uvx` or similar without a pinned version |
 | Credential written into an agent config | Detected | Variable names only. The value is never read into the manifest or the report |
-| Transport exposure | Partly | Plain http to a remote server is reported. Certificate and identity checks are not attempted |
+| Transport exposure | Partly | Plain http to a remote server is reported, and remote servers are enumerated over streamable HTTP. Certificate and identity checks are not attempted, and the older HTTP with SSE transport is not implemented |
 | Excessive scopes | Partly | Broad capability inside one agent shows up as paths. The scopes on a token are not visible to a scanner that only sees tool definitions |
 | Confused deputy, OAuth weaknesses | Not detected | Lives in how a server authenticates and whose identity it acts under. Nothing in a tool list reveals it |
 | Typosquatted or impersonating packages | Not detected | Needs registry data and package reputation, which an offline tool does not have |

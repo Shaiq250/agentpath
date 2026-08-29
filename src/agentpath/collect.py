@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Callable, Iterable
 
 from .discovery import STDIO, ServerSpec, discover
+from .mcp_http import enumerate_everything as http_enumerate
 from .mcp_stdio import (
     DEFAULT_TIMEOUT,
     EnumerationError,
@@ -155,22 +156,19 @@ def collect(
             servers.append(server)
             continue
 
-        if spec.transport != STDIO:
-            server.status = EnumerationStatus(
-                SKIPPED,
-                f"{spec.transport} transport is not enumerated yet, so its tools are unknown",
-            )
-            _emit(on_event, "skipped", spec, server.status.reason)
-            servers.append(server)
-            continue
-
         key = _cache_key(spec)
         previous = cache["servers"].get(key) if use_cache else None
 
         _emit(on_event, "launching", spec, spec.command_line)
         try:
-            raw_tools, prompts, resources = enumerate_everything(
-                spec.command, spec.args, spec.env, timeout)
+            if spec.transport == STDIO:
+                raw_tools, prompts, resources = enumerate_everything(
+                    spec.command, spec.args, spec.env, timeout)
+            else:
+                # A remote server is reached rather than run, which is a smaller
+                # risk than executing a command but still a request to somewhere
+                # a config file chose, so it happens under the same launch rules.
+                raw_tools, prompts, resources = http_enumerate(spec.url, timeout)
             server.prompts = prompts
             server.resources = resources
         except EnumerationError as exc:

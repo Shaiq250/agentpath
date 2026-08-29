@@ -157,14 +157,22 @@ def _warn_about_launching(specs: list[ServerSpec]) -> None:
     command. Printing the commands costs nothing and means nobody can say they
     were not told.
     """
-    launchable = [spec for spec in specs if spec.transport == "stdio"]
-    if not launchable:
+    local = [spec for spec in specs if spec.transport == "stdio"]
+    remote = [spec for spec in specs if spec.transport != "stdio"]
+    if not local and not remote:
         return
-    print("agentpath is about to start the following servers to ask for their tools.",
-          file=sys.stderr)
-    print("This runs the commands exactly as your config files define them:", file=sys.stderr)
-    for spec in launchable:
-        print(f"  {spec.name}: {spec.command_line}", file=sys.stderr)
+
+    if local:
+        print("agentpath is about to start the following servers to ask for their tools.",
+              file=sys.stderr)
+        print("This runs the commands exactly as your config files define them:",
+              file=sys.stderr)
+        for spec in local:
+            print(f"  {spec.name}: {spec.command_line}", file=sys.stderr)
+    if remote:
+        print("It will also contact these remote servers over the network:", file=sys.stderr)
+        for spec in remote:
+            print(f"  {spec.name}: {spec.url}", file=sys.stderr)
     print("If you did not write these config files, stop and run with --no-launch, "
           "or scan inside a container.", file=sys.stderr)
     print("", file=sys.stderr)

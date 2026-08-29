@@ -48,12 +48,16 @@ def test_one_bad_server_does_not_stop_the_others(tmp_path):
     assert result.collection["unenumerated"] == ["bad"]
 
 
-def test_http_servers_are_skipped_with_a_reason(tmp_path):
-    result = collect([spec("remote", None, transport=HTTP, url="https://example.com/mcp")],
-                     cache_file=tmp_path / "c.json")
+def test_an_unreachable_http_server_fails_rather_than_being_skipped(tmp_path):
+    """It is attempted now. A server we could not reach is a failure with a
+    reason, which keeps the scan honestly incomplete rather than silently short."""
+    result = collect([spec("remote", None, transport=HTTP,
+                           url="http://127.0.0.1:9/mcp")],
+                     timeout=2.0, cache_file=tmp_path / "c.json")
     server = result.agent.servers[0]
-    assert server.status.state == SKIPPED
-    assert "not enumerated yet" in server.status.reason
+    assert server.status.state == FAILED
+    assert server.status.reason
+    assert result.agent.complete is False
 
 
 def test_a_second_run_re_enumerates_rather_than_trusting_the_cache(tmp_path):

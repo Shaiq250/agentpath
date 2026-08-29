@@ -142,9 +142,11 @@ agentpath analyze manifest.json
 ```
 
 `collect` reads the MCP configurations for Claude Code, Claude Desktop, Cursor,
-VS Code and others, starts each configured server, and asks it which tools it
-offers. Starting a server means running the command in its config file, so those
-commands are printed before anything runs. Use `--no-launch` to read the configs
+VS Code and others, then asks each configured server which tools it offers. For a
+local server that means running the command in its config file. For a remote one
+it means a request to the URL that file names, which is a smaller risk but still
+somewhere a config chose, so both happen under the same rule and both are printed
+before anything runs. Use `--no-launch` to read the configs
 without executing anything, and scan configurations you do not trust inside a
 container.
 
@@ -491,8 +493,9 @@ result.
 Confirmation uses stand in tools and a generic task, so it does not exercise a
 deployed agent's own system prompt or tool implementations.
 
-Only stdio MCP servers are enumerated today. HTTP and SSE servers are recorded as
-skipped, which makes the scan incomplete rather than silently empty.
+Remote servers are reached over streamable HTTP. The older HTTP and SSE
+transport is not implemented, and a server using it is recorded as failed with
+the reason rather than quietly contributing nothing.
 
 File reading tools are not treated as untrusted entry points by default, because
 whether an attacker can write to what they read depends on the environment. The
