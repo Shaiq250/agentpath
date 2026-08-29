@@ -14,7 +14,7 @@ the part worth reading.
 | --- | --- | --- |
 | Indirect prompt injection reaching a dangerous tool | Detected, and confirmable | Source to sink path analysis, plus `confirm` to test whether a model actually walks it |
 | Lethal trifecta: untrusted input, private data, egress | Detected | The `exfiltration_chain` rule, reported as one finding rather than three |
-| Tool poisoning by description | Detected | Instructions aimed at the model inside a description: concealment, instruction override, forced chaining. Checked in tool, prompt and resource descriptions |
+| Tool poisoning by description | Detected, and confirmable | Instructions aimed at the model inside a description: concealment, instruction override, forced chaining. Checked in tool, prompt and resource descriptions, and `confirm --what poisoning` tests whether a model actually follows one |
 | Concealed payloads in descriptions | Detected | Unicode tag blocks, zero width and bidi characters. Tag block content is decoded and shown |
 | Rug pull, post approval mutation | Detected | Every tool definition is fingerprinted at collection, and a later scan reports what changed |
 | Tool shadowing | Detected | Two servers claiming one tool name, with severity driven by the trust gap between them |

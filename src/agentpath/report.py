@@ -194,6 +194,38 @@ def _issues_block(agent: Agent, issues: list[Issue]) -> list[str]:
             lines.append("")
             lines.append(issue.detail)
             lines.append("")
+            data = issue.confirmation
+            if data and data.get("verdict"):
+                who = ("a scripted stand in" if not data.get("trustworthy")
+                       else f"`{data.get('agent_name', 'the agent')}`")
+                verdict = data["verdict"]
+                if verdict == "confirmed":
+                    lines.append(f"**Followed.** {who} acted on this description in "
+                                 f"{data.get('succeeded', 0)} of {data.get('attempts', 0)} "
+                                 f"attempts: {data.get('detail', '')}")
+                    if data.get("observed_call"):
+                        lines.append("")
+                        lines.append(f"Observed call: `{data['observed_call']}`")
+                elif verdict == "not_confirmed":
+                    lines.append(f"**Not followed.** {who} used the tool in "
+                                 f"{data.get('delivered', 0)} of {data.get('attempts', 0)} "
+                                 f"attempts and did not act on the planted text.")
+                elif verdict == "not_delivered":
+                    lines.append(f"**Not tested.** {who} never called this tool, so "
+                                 f"nothing exercised the planted text.")
+                if data.get("agent_said"):
+                    lines.append("")
+                    lines.append("The agent's own response:")
+                    lines.append("")
+                    for para in data["agent_said"].split("\n"):
+                        if para.strip():
+                            lines.append(f"> {para.strip()}")
+                    lines.append("")
+                if data.get("caveat"):
+                    lines.append("")
+                    lines.append(data["caveat"])
+                lines.append("")
+
             lines.append(f"**Fix.** {issue.fix}")
             lines.append("")
 

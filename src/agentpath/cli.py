@@ -22,7 +22,12 @@ from pathlib import Path
 from .agents import AgentUnavailable, ModelAgent, ScriptedAgent
 from .baseline import BaselineError, apply_baseline, build_baseline, load_baseline
 from .classify import classify_agent
-from .confirm import apply_confirmations, confirm_all
+from .confirm import (
+    apply_confirmations,
+    apply_issue_confirmations,
+    confirm_all,
+    confirm_poisoning,
+)
 from .crossserver import find_issues
 from .collect import collect as run_collect
 from .discovery import ServerSpec, config_locations, discover
@@ -84,6 +89,12 @@ def build_parser() -> argparse.ArgumentParser:
     confirm.add_argument("--attempts", type=int, default=3,
                          help="payload variations to try per path (default: 3)")
     confirm.add_argument("--policy", help="path to an .agentpath.yml file")
+    confirm.add_argument(
+        "--what", choices=("paths", "poisoning", "all"), default="all",
+        help="paths tests whether an agent walks a source to sink path. poisoning "
+             "puts a flagged tool description in front of a model and watches whether "
+             "it follows the instructions inside it (default: all)",
+    )
 
     importer = sub.add_parser(
         "import",
@@ -288,10 +299,15 @@ def cmd_confirm(args: argparse.Namespace) -> int:
     classify_agent(agent_model)
     apply_policy(agent_model, policy)
     findings = run_analysis(agent_model, policy)
-    candidates = [f for f in findings if not f.suppressed]
+    issues = find_issues(agent_model, policy)
+    candidates = [f for f in findings if not f.suppressed] if args.what != "poisoning" else []
+    flagged = [i for i in issues
+               if i.status == "open"
+               and i.kind in ("tool_description_injection", "concealed_text_in_description")
+               ] if args.what != "paths" else []
 
-    if not candidates:
-        print("No candidate paths to confirm.", file=sys.stderr)
+    if not candidates and not flagged:
+        print("Nothing to confirm.", file=sys.stderr)
         return 0
 
     if args.agent == "scripted":
@@ -307,8 +323,12 @@ def cmd_confirm(args: argparse.Namespace) -> int:
                   "without a model.", file=sys.stderr)
             return 2
 
-    print(f"Confirming {len(candidates)} candidate paths against {agent.name}.",
-          file=sys.stderr)
+    plan = []
+    if candidates:
+        plan.append(f"{len(candidates)} candidate paths")
+    if flagged:
+        plan.append(f"{len(flagged)} flagged descriptions")
+    print(f"Confirming {' and '.join(plan)} against {agent.name}.", file=sys.stderr)
     print("Stand in tools only: nothing is sent, refunded or executed.", file=sys.stderr)
 
     def narrate(event, payload):
@@ -324,21 +344,40 @@ def cmd_confirm(args: argparse.Namespace) -> int:
                       else f"delivered {payload.delivered}/{payload.attempts}")
             print(f"    {mark} ({detail})", file=sys.stderr)
 
-    results = confirm_all(candidates, agent, args.attempts, on_event=narrate)
+    results = confirm_all(candidates, agent, args.attempts, on_event=narrate) if candidates else []
+
+    def narrate_issue(event, payload):
+        if event == "start":
+            print(f"  testing {payload.id}: {', '.join(payload.tools) or 'server level'}",
+                  file=sys.stderr)
+        else:
+            mark = {"confirmed": "CONFIRMED", "not_confirmed": "not confirmed",
+                    "not_delivered": "NOT TESTED (the tool was never called)",
+                    "untestable": "untestable"}[payload.verdict]
+            print(f"    {mark} ({payload.succeeded}/{payload.attempts})", file=sys.stderr)
+
+    poisoning = (confirm_poisoning(flagged, agent, args.attempts, on_event=narrate_issue)
+                 if flagged else [])
 
     Path(args.out).write_text(
         json.dumps({
-            "schema": "agentpath-confirmations/v1",
+            "schema": "agentpath-confirmations/v2",
             "agent": {"kind": agent.kind, "name": agent.name,
                       "trustworthy": agent.trustworthy},
             "results": [result.to_dict() for result in results],
+            "poisoning": [result.to_dict() for result in poisoning],
         }, indent=2),
         encoding="utf-8",
     )
     confirmed = sum(1 for result in results if result.verdict == "confirmed")
     undelivered = sum(1 for result in results if result.verdict == "not_delivered")
-    print(f"\nWrote {args.out}: {confirmed} of {len(results)} paths confirmed.",
-          file=sys.stderr)
+    lines = []
+    if results:
+        lines.append(f"{confirmed} of {len(results)} paths confirmed")
+    if poisoning:
+        walked = sum(1 for r in poisoning if r.verdict == "confirmed")
+        lines.append(f"{walked} of {len(poisoning)} descriptions followed by the agent")
+    print(f"\nWrote {args.out}: {'; '.join(lines)}.", file=sys.stderr)
     if undelivered:
         print(f"{undelivered} paths were never exercised: the agent did not read the "
               f"planted content, so those are not negative results.", file=sys.stderr)
@@ -395,6 +434,7 @@ def cmd_analyze(args: argparse.Namespace) -> int:
             print(f"error: could not read confirmations: {exc}", file=sys.stderr)
             return 2
         apply_confirmations(findings, payload.get("results", []))
+        apply_issue_confirmations(issues, payload.get("poisoning", []))
 
     if args.format == "json":
         text = to_json(agent, findings, issues)

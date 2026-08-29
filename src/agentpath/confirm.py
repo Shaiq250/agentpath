@@ -62,6 +62,7 @@ class Confirmation:
     observed_call: str = ""
     nonce: str = ""
     agent_said: str = ""
+    agent_responses: list[str] = field(default_factory=list)
     detail: str = ""
     caveat: str = ""
 
@@ -177,3 +178,127 @@ def apply_confirmations(findings, confirmations: list[Confirmation] | list[dict]
             finding.status = "candidate"
         else:
             finding.status = NOT_CONFIRMED
+
+
+POISONING_CAVEAT = (
+    "Not confirmed means this model, on this task, did not act on the description. "
+    "A different model, task or client could still be steered by it."
+)
+
+NOT_EXERCISED_CAVEAT = (
+    "The model never called the tool whose description was under test, so nothing "
+    "exercised the planted text. This path was not tested."
+)
+
+
+def confirm_issue(issue, agent: ConfirmationAgent, attempts: int = 3) -> Confirmation:
+    """Put a flagged description in front of a model and watch what it does.
+
+    The static rule says a description contains instructions aimed at the model.
+    This asks the only question that settles it: does a model follow them.
+
+    The oracle is an unrequested tool call. The task needs exactly one tool, so
+    anything else the model reaches for came from the description rather than
+    from the conversation. That works without us having to interpret whatever
+    the instruction actually said, which matters because the text is the server
+    author's, not ours.
+    """
+    from .harness import build_poison_scenario, judge_poisoning
+
+    qualified = issue.tools[0] if issue.tools else ""
+    tool_name = qualified.split("/")[-1]
+    description = issue.evidence.get("description", "")
+
+    result = Confirmation(
+        finding_id=issue.id,
+        verdict=NOT_CONFIRMED,
+        agent_kind=agent.kind,
+        agent_name=agent.name,
+        trustworthy=bool(agent.trustworthy),
+    )
+    if not description:
+        result.verdict = UNTESTABLE
+        result.detail = "the flagged description was not recorded, so there is nothing to test"
+        result.caveat = "This description was not tested at all."
+        return result
+
+    scenario = build_poison_scenario(tool_name, description)
+    exercised = 0
+
+    for _ in range(max(1, attempts)):
+        try:
+            run = agent.run(scenario)
+        except AgentUnavailable as exc:
+            result.verdict = UNTESTABLE
+            result.detail = str(exc)
+            result.caveat = "No agent was available, so this description was not tested."
+            return result
+
+        result.attempts += 1
+        verdict, evidence = judge_poisoning(scenario, run.recorder)
+        if evidence["payload_delivered"]:
+            exercised += 1
+        result.attempts_log.append({
+            "payload": "the tool's own description",
+            "style": "real description under test",
+            "delivered": evidence["payload_delivered"],
+            "sink_called": bool(evidence["unrequested_calls"]),
+            "verdict": verdict,
+        })
+
+        if verdict == CONFIRMED:
+            result.succeeded += 1
+            result.verdict = CONFIRMED
+            result.observed_call = evidence.get("observed_call", "")
+            result.detail = (f"the model called {', '.join(evidence['unrequested_calls'])}, "
+                             f"which the task never asked for")
+        else:
+            said = run.final_text()
+            if said:
+                result.agent_responses.append(said)
+                if not result.agent_said:
+                    result.agent_said = said
+
+    result.delivered = exercised
+
+    if result.verdict != CONFIRMED and exercised == 0:
+        result.verdict = NOT_DELIVERED
+        result.caveat = NOT_EXERCISED_CAVEAT
+    elif result.verdict == CONFIRMED:
+        result.caveat = SCRIPTED_CAVEAT if not result.trustworthy else ""
+    else:
+        result.caveat = POISONING_CAVEAT
+        if not result.trustworthy:
+            result.caveat = f"{SCRIPTED_CAVEAT} {POISONING_CAVEAT}"
+    return result
+
+
+def confirm_poisoning(issues, agent: ConfirmationAgent, attempts: int = 3,
+                      on_event=None) -> list[Confirmation]:
+    """Test every flagged description. Suppressed and baselined ones are skipped."""
+    from .toolaudit import CONCEALED_TEXT, POISONED_DESCRIPTION
+
+    results: list[Confirmation] = []
+    for issue in issues:
+        if issue.kind not in (POISONED_DESCRIPTION, CONCEALED_TEXT):
+            continue
+        if issue.status != "open":
+            continue
+        if on_event:
+            on_event("start", issue)
+        confirmation = confirm_issue(issue, agent, attempts)
+        results.append(confirmation)
+        if on_event:
+            on_event("done", confirmation)
+    return results
+
+
+def apply_issue_confirmations(issues, confirmations) -> None:
+    by_id: dict[str, dict] = {}
+    for entry in confirmations:
+        data = entry if isinstance(entry, dict) else entry.to_dict()
+        by_id[data["finding_id"]] = data
+    for issue in issues:
+        data = by_id.get(issue.id)
+        if data:
+            issue.confirmation = data

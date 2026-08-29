@@ -47,6 +47,7 @@ class Issue:
     evidence: dict[str, Any] = field(default_factory=dict)
     status: str = "open"
     suppression: dict[str, str] = field(default_factory=dict)
+    confirmation: dict[str, Any] = field(default_factory=dict)
 
     @property
     def suppressed(self) -> bool:

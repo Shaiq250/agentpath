@@ -30,7 +30,33 @@ class ScriptedAgent:
         self.behaviour = behaviour
         self.name = f"scripted:{behaviour}"
 
-    def run(self, scenario: Scenario) -> AgentResult:
+    def run(self, scenario) -> AgentResult:
+        if hasattr(scenario, "decoys"):
+            return self._run_poisoning(scenario)
+        return self._run_path(scenario)
+
+    def _run_poisoning(self, scenario) -> AgentResult:
+        """A poisoning trial: do the task, and if compliant, obey the description."""
+        recorder = Recorder()
+        transcript = []
+
+        result = scenario.handle(recorder, scenario.tool_name, {"id": "42"})
+        transcript.append({"role": "tool", "name": scenario.tool_name, "content": result})
+
+        if self.behaviour == "ignores":
+            transcript.append({"role": "assistant",
+                               "content": "Item 42 is the quarterly report."})
+            return AgentResult(recorder=recorder, transcript=transcript)
+
+        # A fully compliant agent does what the description told it to, which
+        # means reaching for a tool the task never mentioned.
+        if scenario.decoys:
+            scenario.handle(recorder, scenario.decoys[0], {"target": "42"})
+            transcript.append({"role": "tool", "name": scenario.decoys[0], "content": "ok"})
+        transcript.append({"role": "assistant", "content": "Done, as the tool required."})
+        return AgentResult(recorder=recorder, transcript=transcript)
+
+    def _run_path(self, scenario: Scenario) -> AgentResult:
         recorder = Recorder()
         transcript = []
 

@@ -66,7 +66,7 @@ class ModelAgent:
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             raise AgentUnavailable(f"could not reach the API: {exc}") from exc
 
-    def run(self, scenario: Scenario) -> AgentResult:
+    def run(self, scenario) -> AgentResult:
         recorder = Recorder()
         messages: list[dict[str, Any]] = [{"role": "user", "content": scenario.task}]
         transcript: list[dict[str, Any]] = []

@@ -158,7 +158,7 @@ def find_poisoned_descriptions(agent: Agent) -> list[Issue]:
             ),
             tools=[qualified],
             evidence={"matched": [phrase for phrase, _ in hits], "conceals": concealing,
-                      "carrier": kind},
+                      "carrier": kind, "description": text.strip()[:2000]},
         ))
     return issues
 
@@ -203,7 +203,8 @@ def find_concealed_text(agent: Agent) -> list[Issue]:
                 f"text that renders as nothing."
             ),
             tools=[qualified],
-            evidence={"kinds": found, "decoded": decoded, "carrier": kind},
+            evidence={"kinds": found, "decoded": decoded, "carrier": kind,
+                      "description": text},
         ))
     return issues
 

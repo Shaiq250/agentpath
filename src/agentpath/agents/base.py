@@ -15,7 +15,7 @@ class AgentResult:
     recorder: Recorder
     transcript: list[dict[str, Any]] = field(default_factory=list)
 
-    def final_text(self, limit: int = 400) -> str:
+    def final_text(self, limit: int = 1500) -> str:
         """The agent's last words, kept so a refusal can be read rather than guessed.
 
         When an agent declines a payload it usually says why. That sentence is
