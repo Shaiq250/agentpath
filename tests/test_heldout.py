@@ -130,3 +130,18 @@ def test_the_open_world_mapping_stays_retired():
               / "measure_annotations.py").read_text()
     assert "openWorldHint" in script, "the reasoning should stay documented"
     assert '("openWorldHint", UNTRUSTED_READ' not in script, "the comparison must not return"
+
+
+def test_the_writeup_numbers_match_the_recorded_runs():
+    """A write-up drifting away from the files it cites is its own small lie."""
+    root = Path(__file__).resolve().parents[1]
+    writeup = (root / "docs" / "measuring-a-detector.md").read_text()
+
+    first = (root / "examples" / "heldout" / "RESULT-2026-08-27.txt").read_text()
+    second = (root / "examples" / "heldout-2" / "RESULT-2026-08-27.txt").read_text()
+    recall = (root / "examples" / "recall" / "RESULT-2026-08-27.txt").read_text()
+
+    assert "93 percent" in writeup and "39 of 42" in first
+    assert "97 percent" in writeup and "67 of 69" in second
+    assert "80 percent" in writeup and "4 of 5" in recall
+    assert "123" in writeup, "the false positive corpus size is quoted"

@@ -21,6 +21,14 @@ Everything else runs on your machine. No account, no API key for the analysis,
 and nothing about your tools leaves the box. The confirmation step can use a real
 model if you give it a key, but it never has to.
 
+## Write-up
+
+[What it costs to measure a security tool honestly](docs/measuring-a-detector.md)
+covers how this tool was measured and what each attempt got wrong: a corpus that
+scored 1.00 and meant nothing, an external answer key that turned out to be
+answering a different question, and a recall corpus where the labelling took four
+attempts and the detector was right every time I disagreed with it.
+
 ## The problem
 
 An AI agent cannot reliably tell the difference between content it reads and
