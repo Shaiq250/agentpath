@@ -1,0 +1,55 @@
+Recorded 2026-08-31, before any rule was changed in response to it.
+
+The first fully independent test of PRECISION. InjecAgent (Zhan et al.) tests
+something different from these rules: it injects attacker instructions into tool
+RESPONSES rather than into tool descriptions, so it cannot measure recall here.
+What it does provide is 330 ordinary tool descriptions across 38 toolkits,
+written by people with no connection to this project. Every finding on them is a
+false positive.
+
+Unlike MCPTox, nothing was tuned before this ran, and nothing about this corpus
+was examined first. The number below is a measurement rather than a regression
+guard.
+
+InjecAgent legitimate toolkits, false positives only
+Zhan et al. Their tool definitions, none of them poisoned.
+
+toolkits            38
+tool descriptions   330
+falsely flagged     3  (0.9%)
+
+  tool_description_injection  ['EthereumManager/CreateEthereumAccount__225']
+    matched: ['private key']
+  tool_description_injection  ['EthereumManager/ImportEthereumAccount__226']
+    matched: ['private key']
+  tool_description_injection  ['EthereumManager/SignMessage__229']
+    matched: ['private key']
+
+
+====================================================================
+AFTER the fix, same day.
+
+All three false positives were the same mistake, and it was one this
+project had already made once. The rule treated the phrase "private
+key" as a signal, so it flagged three Ethereum tools whose entire
+purpose is handling private keys. Earlier, the bare word "credential"
+had flagged a tool called get_credentials for the same reason.
+
+The distinction that fixes both: a PATH to a secret file is unusual in
+a tool description, and nothing legitimate needs to name ~/.ssh/id_rsa
+or /etc/shadow. The PHRASE "private key" is ordinary language for a
+crypto or auth tool. So the rule now matches paths and file names
+only.
+
+Punishing a server for describing honestly what it does is not
+detection, it is noise wearing a security badge.
+
+Nothing else moved. MCPTox stayed at 82 percent recall.
+
+InjecAgent legitimate toolkits, false positives only
+Zhan et al. Their tool definitions, none of them poisoned.
+
+toolkits            38
+tool descriptions   330
+falsely flagged     0  (0.0%)
+

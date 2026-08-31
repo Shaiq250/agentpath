@@ -266,14 +266,78 @@ For false positives, against 123 tool definitions from nine real servers. A test
 fails if any of them produces a single finding on that set, because a rule that
 fires on ordinary tools covers a class and helps nobody.
 
-For recall, against deliberately vulnerable servers published by other people:
-Invariant Labs' original tool poisoning and shadowing demonstrations, and the
-Damn Vulnerable MCP challenge servers. **80 percent caught, with no false
-positives on the 26 benign tools alongside them**, recorded before the rules were
-changed in response. The one miss was a `<HIDDEN>` instruction block, which the
-pattern did not know about because it listed three tag words rather than
-describing what a pseudo tag is. That is now generalised, so the corpus has
-become a regression guard and the 80 percent is the standing figure.
+For recall, first against deliberately vulnerable servers published by other
+people, where the rules caught 80 percent of six samples, and then against
+MCPTox, an academic benchmark of 485 poisoned descriptions and 362 legitimate
+tools from 45 real servers.
+
+**On MCPTox the rules caught 5 percent.** The 80 percent did not generalise, and
+it should not have been surprising: six samples is not a corpus, and the rules
+had been shaped around the phrasings those six happened to use. Fewer than one
+in a hundred MCPTox cases uses the tag style those samples relied on.
+
+The false positive half held. Zero of 362 legitimate tools were flagged, which
+matters in a field where an independent audit of two YARA based scanners put
+their false positive rate near 78 percent. The rules were then rewritten to match STRUCTURE rather than phrases, which is
+why they had collapsed: a tool description that requires the model to use a
+different tool, one that claims to outrank the user's request, one that names an
+SSH key or /etc/shadow. Those signals do not care which words an attacker picks.
+After further rounds, first fixing a rule that was failing on camelCase and
+unquoted tool names, then adding two signals found by looking for new categories
+rather than new wordings, that reaches 82 percent recall with 9 false positives
+out of 362 legitimate tools, which is 2 percent. **Those later numbers are tuned, not measured**, because the
+rules were changed knowing what the corpus contains. The 5 percent stands as the
+honest figure from this benchmark.
+
+The zero false positive result still holds on the project's own 123 real tools,
+but not here. Two percent is worth saying plainly. For context, an independent
+audit of two YARA based scanners in this field put their false positive rate
+near 78 percent.
+
+### An independent precision test
+
+InjecAgent tests something different, injecting attacker text into tool
+responses rather than descriptions, so it cannot measure recall here. What it
+does provide is 330 ordinary tool descriptions across 38 toolkits, written by
+people with no connection to this project.
+
+```
+git clone https://github.com/uiuc-kang-lab/InjecAgent /tmp/injecagent
+python scripts/measure_injecagent.py /tmp/injecagent
+```
+
+**Three false positives out of 330, which is 0.9 percent.** Unlike the MCPTox
+figures, nothing was tuned before this ran and nothing about the corpus was
+looked at first, so it is a measurement rather than a regression guard.
+
+All three were the same mistake, and one already made once here: the rule
+treated the phrase "private key" as a signal and flagged three Ethereum tools
+whose entire purpose is handling private keys, exactly as the bare word
+"credential" had flagged a tool called `get_credentials`. The distinction that
+fixes both is that a path to a secret file is unusual in a description, while
+the phrase is ordinary for a crypto or auth tool. After that, zero of 330, with
+recall unchanged.
+
+**Where this approach stops.** Several further configurations were tried and
+every one traded recall for precision roughly one for one: 79 percent cost 14
+false positives, 87 percent cost 23. The remaining misses need meaning rather
+than pattern. "Helper tool to get information" and "Before use the tool
+sendmail" are both a word beside the word tool, and separating them is a
+question about grammar and intent. Going further would mean putting a model in
+the loop, which would cost the two properties this tool is built on: running
+offline, and being deterministic. That trade is not worth making, so 82 percent
+is where pattern matching is left.
+
+Every run is recorded in the repository exactly as it came out, before anything
+was changed in response.
+
+```
+git clone https://github.com/zhiqiangwang4/MCPTox-Benchmark /tmp/mcptox
+python scripts/measure_mcptox.py /tmp/mcptox
+```
+
+The benchmark is not copied into this repository. It carries no licence, so it
+is referenced rather than vendored.
 
 ```
 python scripts/measure_recall.py

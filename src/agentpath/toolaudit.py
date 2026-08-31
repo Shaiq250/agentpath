@@ -45,7 +45,7 @@ CONFIG_SECRET = "credential_in_server_config"
 CONCEALMENT = [
     (r"\bdo(?: not|n't) (?:tell|inform|mention|reveal|show|notify)\b", "asks the model to hide something from the user"),
     (r"\bwithout (?:telling|informing|notifying|alerting) (?:the )?(?:user|human)\b", "asks the model to act without telling the user"),
-    (r"\b(?:secretly|silently|covertly|discreetly)\b(?=.{0,60}\b(?:call|send|read|forward|include)\b)", "asks the model to act covertly"),
+    (r"\b(?:secretly|silently|covertly|discreetly)\b[^.]{0,60}\b(?:call|send|read|forward|include|invoke|pass)\b", "asks the model to act covertly"),
     (r"\bkeep (?:this|it) (?:secret|hidden|to yourself|between us)\b", "asks the model to keep something from the user"),
 ]
 
@@ -55,6 +55,60 @@ OVERRIDE = [
     (r"\b(?:new|updated) (?:instructions|system prompt)\b", "claims to supply new instructions"),
     (r"<\s*/?\s*[A-Za-z][A-Za-z _-]{2,20}\s*>(?=[^<]{20,})", "wraps text in a pseudo tag, which is how an instruction block is marked out for the model"),
 ]
+
+# Structural signals, added after the MCPTox benchmark showed that phrase
+# matching does not survive contact with a corpus somebody else wrote. These key
+# on the SHAPE of a planted instruction rather than its wording, which is what
+# makes them survive a rewrite.
+#
+# The strongest is cross-tool instruction. A tool description exists to describe
+# that tool. When it starts telling the model to use a DIFFERENT tool, and puts
+# a requirement on it, something is wrong. The one legitimate reason to name
+# another tool is to steer people away from it, which is why the exception below
+# matters as much as the rule.
+
+# A tool name is snake_case or camelCase. The first version of this only
+# accepted quoted snake_case in lower case, which meant 'markAsRead' and
+# "the tool sendmail" walked straight past. Names are recognised in three
+# places: quoted, after an explicit call verb, or beside the word tool.
+_SHAPED = r"[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+|[a-z][A-Z][A-Za-z0-9]*)[A-Za-z0-9_]*"
+
+# Two places a tool gets named. Quoted snake_case is safe on its own. Anything
+# else has to sit behind an unambiguous call verb, because a quoted camelCase
+# word is far more often a JSON field than a tool: descriptions are full of
+# things like {'reasonCode': ...} and flagging those would be noise.
+OTHER_TOOL = re.compile(
+    rf"['\"`]([a-z][a-z0-9]*_[a-z0-9_]+)['\"`]"
+    rf"|\b(?:call|calling|invoke|invoking|trigger|triggering)\s+(?:the\s+)?['\"`]?({_SHAPED})['\"`]?",
+    re.I)
+
+ALTERNATIVE = re.compile(
+    r"\b(instead of|rather than|prefer(red)? (this )?over|in place of|as opposed to)", re.I)
+
+REQUIREMENT = re.compile(
+    r"\b(you )?must\b|\bmandatory\b|\brequired\b|\balways\b|\bfirst\b|\bbefore\b", re.I)
+
+# A claim that the description outranks the person. Only counts when it is about
+# the user's request, because plenty of tools have a parameter called priority.
+PRIORITY_CLAIM = re.compile(
+    r"(priority|precedence|supersed\w*|override\w*|higher)[^.]{0,60}"
+    r"(user|query|request|instruction|prompt)"
+    r"|(user|query|request|instruction)[^.]{0,40}(lower priority|superseded|overridden)", re.I)
+
+# Naming one of these in a tool description is close to unarguable. No ordinary
+# tool needs to mention an SSH private key by path.
+# Named artifacts only. The bare word "credential" is not a signal: a tool
+# called get_credentials describes itself honestly, and flagging it would punish
+# a server for being clear about what it does.
+# PATHS only, never the generic phrase. "private key" is ordinary language for a
+# crypto or auth tool, and flagging it punished three honest Ethereum tools
+# whose whole purpose is handling keys, exactly as the bare word "credential"
+# had punished a tool called get_credentials. What is not ordinary is a
+# description naming the FILE: nothing legitimate needs to mention ~/.ssh/id_rsa
+# by path.
+SENSITIVE_ARTIFACT = re.compile(
+    r"~?/?\.ssh/|id_rsa|id_ed25519|/etc/(?:shadow|passwd)"
+    r"|\.env\b|~?/?\.aws/|\.pem\b|authorized_keys|\.npmrc\b|\.netrc\b", re.I)
 
 CHAINING = [
     (r"\bbefore (?:using|calling|invoking|running) (?:this|any) tool,? (?:you (?:must|should)|always)\b", "requires another call before this one"),
@@ -76,6 +130,85 @@ PINNED = re.compile(r"@[\w.\-]+$|@[\w.\-]+\s|==[\w.\-]+|:[\w.\-]+$")
 UNPINNED_RUNNERS = ("npx", "uvx", "pipx", "bunx")
 SECRET_NAME = re.compile(r"(token|secret|password|passwd|api[_-]?key|credential|private[_-]?key)", re.I)
 REFERENCE = re.compile(r"^\$\{?[\w.]+\}?$|^\$\(.*\)$")
+
+
+# A description that dictates a specific argument VALUE. Legitimate descriptions
+# state defaults and constraints; they do not order the model to substitute a
+# value it was not given.
+FORCED_ARGUMENT = re.compile(
+    r"\b(?:must|should|always)\b[^.]{0,70}?"
+    r"\b(?:be (?:changed|set) to|chang(?:e|ed) (?:it|the\s+\w+|\w+) (?:to|as)"
+    r"|set (?:it|the\s+\w+) (?:to|as))", re.I)
+
+# A description that argues for compliance. Descriptions describe what a tool
+# does. When one starts explaining why the model has no choice, it has stopped
+# describing and started instructing.
+#
+# Measured caution: on the MCPTox benchmark this looks stronger than it is,
+# because 20 of the 27 matches there are one identical generated sentence. The
+# general shape is real; the size of the gain on that corpus is not.
+PRETEXT = re.compile(
+    r"this (?:step|action|process) is (?:critical|essential|necessary|required)"
+    r"|for (?:security|safety|compliance|system stability|data integrity) (?:reasons|purposes)"
+    r"|to (?:ensure|prevent|maintain|guarantee) [^.]{0,40}"
+    r"(?:security|stability|integrity|unauthorized|data loss)", re.I)
+
+
+# The difference between dictating and documenting. An attack overrides a value
+# the caller supplied. A default fills one the caller left out, and saying so is
+# what good documentation does.
+DEFAULT_CONTEXT = re.compile(
+    r"\b(?:if|when)\b[^.]{0,30}\b(?:not|no|never)\b[^.]{0,25}"
+    r"\b(?:given|provided|specified|set|present|supplied|passed|included)\b"
+    r"|\b(?:if|when) (?:not|no|none|omitted|unset|absent|unspecified|empty)\b"
+    r"|\bunless\b|\bby default\b|\bdefaults? (?:to|is)\b|\boptional\b", re.I)
+
+
+def _is_a_default(text: str, match: "re.Match") -> bool:
+    """Whether the demand sits inside a sentence that is describing a default."""
+    start = text.rfind(".", 0, match.start()) + 1
+    end = text.find(".", match.end())
+    sentence = text[start:end if end != -1 else len(text)]
+    return bool(DEFAULT_CONTEXT.search(sentence))
+
+
+def _structural(text: str) -> list[tuple[str, str]]:
+    """Signals that do not depend on the attacker's choice of words."""
+    found: list[tuple[str, str]] = []
+
+    other = OTHER_TOOL.search(text)
+    named = next((g for g in other.groups() if g), "") if other else ""
+    if named and REQUIREMENT.search(text) and not ALTERNATIVE.search(text):
+        found.append((named,
+                      "requires the model to use a different tool, which is not something "
+                      "a tool's own description has any business doing"))
+
+    claim = PRIORITY_CLAIM.search(text)
+    if claim:
+        found.append((claim.group(0)[:60],
+                      "claims the description outranks the user's own request"))
+
+    forced = FORCED_ARGUMENT.search(text)
+    if forced and not _is_a_default(text, forced):
+        found.append((forced.group(0)[:60],
+                      "dictates what value an argument must take, which is the caller's "
+                      "business rather than the description's"))
+
+    # On its own this is thin, so it only counts alongside a requirement: a
+    # description that both demands something and argues for why.
+    pretext = PRETEXT.search(text)
+    if pretext and REQUIREMENT.search(text):
+        found.append((pretext.group(0)[:60],
+                      "argues for why the model must comply, which a description of what a "
+                      "tool does has no reason to do"))
+
+    artifact = SENSITIVE_ARTIFACT.search(text)
+    if artifact:
+        found.append((artifact.group(0),
+                      "refers to credentials or a private key by name, which an ordinary "
+                      "tool description has no reason to do"))
+
+    return found
 
 
 def _scan(text: str, patterns) -> list[tuple[str, str]]:
@@ -129,7 +262,8 @@ def find_poisoned_descriptions(agent: Agent) -> list[Issue]:
         if not text.strip():
             continue
 
-        hits = (_scan(text, CONCEALMENT) + _scan(text, OVERRIDE) + _scan(text, CHAINING))
+        hits = (_scan(text, CONCEALMENT) + _scan(text, OVERRIDE)
+                + _scan(text, CHAINING) + _structural(text))
         if not hits:
             continue
 

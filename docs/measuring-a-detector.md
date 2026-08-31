@@ -204,6 +204,93 @@ Which is this: on a small corpus, the labelling decision matters more than the
 detector does. And hand-labelled ground truth is considerably less reliable than
 the confident percentage sitting on top of it suggests.
 
+## Number four: the one that undid number three
+
+Everything above was written before I ran the rules against MCPTox, an academic
+benchmark of tool poisoning built on 45 real MCP servers, with 485 poisoned tool
+descriptions and the legitimate tools of those same servers alongside them.
+
+The rules caught 5 percent.
+
+The 80 percent from the previous section came from six samples. Six is not a
+corpus. What I had actually measured was how well rules shaped around six
+descriptions performed on those same six descriptions, which is the tuned corpus
+problem from section one, wearing yet another disguise and this time fooling me
+for a week.
+
+The reason is visible the moment you look. My patterns keyed on things like an
+`<IMPORTANT>` block and phrases such as "do not tell the user". Across MCPTox's
+485 cases, exactly one uses a tag like that and two say anything about not
+telling. The dominant shapes are different: ninety-one say the model must first
+call some other tool, seventy-eight simply assert that the tool description takes
+priority over the user's request. Nothing in my rule set was looking for either.
+
+The false positive half survived, and that is worth something: zero of 362
+legitimate tools were flagged, in a field where an independent audit of two
+YARA based scanners found roughly 78 percent of their detections were not real.
+Precision without recall is half a detector, but it is the harder half to fix
+honestly.
+
+Three lessons, and the third is the uncomfortable one.
+
+A corpus of six tells you nothing, and I knew that while writing the number down.
+I published it with caveats about it being a regression guard, which was true and
+also let me keep quoting it.
+
+An external corpus is not the same as a large one. My six samples came from
+published research, so they passed my own test of independence, and they were
+still hopelessly unrepresentative.
+
+And the failure mode I have been describing for this entire piece caught me
+again, at the exact moment I thought I had it beaten.
+
+### What fixing it actually required
+
+The temptation was to add patterns for the two phrasings I had seen. That would
+have been the same mistake a fourth time.
+
+What the rules needed was to stop matching phrases and start matching structure.
+Three signals did most of the work, and none of them cares which words an
+attacker chooses.
+
+A tool description that requires the model to use a **different** tool. A
+description exists to describe its own tool. When it starts imposing
+requirements involving another one, something is wrong. There is exactly one
+innocent reason to name a sibling tool, which is to steer people away from it,
+so "use this instead of" and "prefer this over" are excluded. That exception is
+not a detail: without it, four perfectly good filesystem tools get flagged.
+
+A description that claims to **outrank the user's request**. Only when it is
+about the user, though, because plenty of tools have a parameter called
+priority.
+
+A description naming a **specific sensitive artifact**, an SSH key, /etc/shadow,
+an .env file. I first wrote this to include the bare word "credential" and it
+immediately flagged a tool called get_credentials, which was describing itself
+honestly. Punishing a server for being clear about what it does is not
+detection.
+
+That took the benchmark from 5 percent to 68. Two further rounds got it to 82,
+one fixing a rule that only recognised tool names when they were quoted, lower
+case and snake_case, so `'markAsRead'` and "the tool sendmail" walked past, and
+one adding two new categories: a description that dictates what value an
+argument must take, and one that argues for why the model has to comply.
+
+That second round taught me something about benchmarks. The compliance argument
+signal looked strong, catching 21 of the remaining misses. Then I checked, and
+20 of its 27 matches were one identical generated sentence. The general shape is
+a real signal. The size of the win was a property of the benchmark's generator,
+and quoting it without that caveat would have been another small dishonesty.
+
+There is also a ceiling here, and it is worth naming. Several further
+configurations traded recall for precision roughly one for one. The misses that
+remain need meaning rather than pattern: "Helper tool to get information" and
+"Before use the tool sendmail" are both a word beside the word tool, and telling
+them apart is a question about grammar and intent. Going further means putting a
+model in the loop, which costs the two properties the tool is built on. So the
+honest place to stop is 82 percent, with the reason written down. Every number after the first is tuned, not measured, which the repository says
+next to each of them. The 5 percent is what this benchmark actually told me.
+
 ## Predicting versus observing
 
 The other half of the tool is the part I actually built it for.

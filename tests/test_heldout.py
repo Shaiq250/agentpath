@@ -143,5 +143,5 @@ def test_the_writeup_numbers_match_the_recorded_runs():
 
     assert "93 percent" in writeup and "39 of 42" in first
     assert "97 percent" in writeup and "67 of 69" in second
-    assert "80 percent" in writeup and "4 of 5" in recall
+    assert "5 percent" in writeup and "4 of 5" in recall
     assert "123" in writeup, "the false positive corpus size is quoted"
