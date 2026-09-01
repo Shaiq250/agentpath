@@ -1,6 +1,6 @@
-name: agentpath
+name: agentpath attack path scanner
 description: Find attack paths in the tools an AI agent can call, and report them to code scanning.
-author: Shaiq
+author: Syed Shaiq Hussain
 branding:
   icon: git-branch
   color: purple
