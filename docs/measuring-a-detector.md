@@ -291,6 +291,45 @@ model in the loop, which costs the two properties the tool is built on. So the
 honest place to stop is 82 percent, with the reason written down. Every number after the first is tuned, not measured, which the repository says
 next to each of them. The 5 percent is what this benchmark actually told me.
 
+## Number five: the one that held
+
+After all that, there was still something I had never done. Every measurement so
+far, including the one that humiliated me, tested recall. None of them tested
+precision against a corpus somebody else had built. The zero false positives I
+kept quoting came from 123 tools I had assembled myself.
+
+InjecAgent is a benchmark for a different problem. It injects attacker
+instructions into tool responses, the content an agent reads back, rather than
+into descriptions. It cannot tell me anything about whether my rules catch a
+poisoned description. What it has is 330 ordinary tool descriptions across 38
+toolkits, written by researchers with no interest in my rules. Every finding on
+those is a false positive and nothing else.
+
+I ran it before touching anything and before looking at the data.
+
+Three false positives out of 330. Under one percent.
+
+That is the first number in this project that is both good and honest, and I want
+to be careful about why. Nothing was tuned first. I had not read the corpus. The
+result is a measurement rather than a regression guard, which is more than I can
+say for the 82 percent sitting a section above it.
+
+Then I looked at the three, and they were the same mistake I had already made
+once. The rule treated the phrase "private key" as suspicious, so it flagged
+three Ethereum tools whose entire purpose is handling private keys. Weeks
+earlier, the bare word "credential" had flagged a tool called get_credentials for
+exactly the same reason.
+
+The distinction that fixes both is worth stating because it took me two goes to
+see it. A path to a secret file is unusual in a tool description. Nothing
+legitimate needs to name ~/.ssh/id_rsa. The phrase "private key" is ordinary
+language for a crypto or auth tool describing itself accurately. Match the path,
+not the subject. That took it to zero of 330, with recall unchanged.
+
+The general form of that mistake now has a name in my head. Punishing a server
+for honestly describing what it does is not detection. It is noise wearing a
+security badge, and I have made it twice, so I expect to make it again.
+
 ## Predicting versus observing
 
 The other half of the tool is the part I actually built it for.
@@ -355,6 +394,11 @@ and a rule set can look excellent on one while being useless on the other.
 And for security tools specifically: decide what your empty result means before
 you ship. Silence is the easiest output to produce and the most dangerous one to
 get wrong.
+
+One more, learned last. Test both halves against strangers. I spent weeks
+improving recall against corpora I had built and only afterwards discovered that
+precision, the thing I had been quietly confident about, had never once been
+checked by anyone but me. It happened to hold. It might not have.
 
 ## The tool
 

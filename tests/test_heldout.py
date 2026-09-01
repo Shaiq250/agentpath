@@ -145,3 +145,8 @@ def test_the_writeup_numbers_match_the_recorded_runs():
     assert "97 percent" in writeup and "67 of 69" in second
     assert "5 percent" in writeup and "4 of 5" in recall
     assert "123" in writeup, "the false positive corpus size is quoted"
+
+    injec = (root / "examples" / "injecagent" / "RESULT-2026-08-31.txt").read_text()
+    mcptox = (root / "examples" / "mcptox" / "RESULT-2026-08-31.txt").read_text()
+    assert "330" in writeup and "330" in injec
+    assert "82 percent" in writeup and "82%" in mcptox
